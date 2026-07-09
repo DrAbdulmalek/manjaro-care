@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Manjaro Care
+Name[ar]=مانجارو كير — صيانة النظام
+Comment=System maintenance center for Manjaro/Arch — click instead of typing commands
+Comment[ar]=مركز صيانة رسومي لمانجارو — نقرة بدل أمر
+Exec=manjaro-care
+Icon=applications-system
+Terminal=false
+Categories=System;Qt;Utility;
+Keywords=maintenance;clean;system;manjaro;arch;
+StartupNotify=true

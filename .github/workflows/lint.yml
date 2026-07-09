@@ -1,0 +1,76 @@
+name: Lint & Syntax Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Syntax Validation
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm bash python
+
+      - name: Bash syntax check
+        run: |
+          FAIL=0
+          for f in install.sh uninstall.sh manjaro-care; do
+            if bash -n "$f" 2>&1; then
+              echo "OK: $f"
+            else
+              echo "FAIL: $f"
+              FAIL=1
+            fi
+          done
+          exit $FAIL
+
+      - name: Python AST check
+        run: |
+          FAIL=0
+          for f in $(find . -name '*.py' -not -path './.git/*'); do
+            if python3 -c "import ast; ast.parse(open('$f').read())" 2>&1; then
+              echo "OK: $f"
+            else
+              echo "FAIL: $f"
+              FAIL=1
+            fi
+          done
+          exit $FAIL
+
+      - name: Check no trailing whitespace in shell scripts
+        run: |
+          FAIL=0
+          for f in install.sh uninstall.sh manjaro-care; do
+            if grep -rn '[[:space:]]$' "$f" 2>/dev/null; then
+              echo "WARN: trailing whitespace in $f"
+            fi
+          done
+          echo "Done"
+
+      - name: Verify install.sh checks for root
+        run: |
+          if grep -q 'EUID -ne 0' install.sh 2>/dev/null; then
+            echo "OK: install.sh checks for root"
+          else
+            echo "FAIL: install.sh missing root check"
+            exit 1
+          fi
+
+      - name: Verify .gitignore exists
+        run: |
+          if [ -f .gitignore ]; then
+            echo "OK: .gitignore exists"
+          else
+            echo "FAIL: .gitignore missing"
+            exit 1
+          fi
