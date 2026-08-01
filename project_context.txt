@@ -1,0 +1,2785 @@
+# سياق المشروع: manjaro-care
+**المسار:** `/home/runner/work/manjaro-care/manjaro-care`
+**تاريخ التوليد:** 2026-08-01T22:01:30.585079
+
+## 📊 إحصائيات المشروع
+- **إجمالي الملفات الممسوحة:** 177
+- **الملفات المضمنة:** 28
+- **إجمالي الحجم:** 95,685 بايت
+
+### اللغات والتقنيات:
+- Python: 20 ملف
+- Markdown: 3 ملف
+- Other: 3 ملف
+- Shell: 2 ملف
+
+## 🌳 شجرة الملفات
+```
+manjaro-care/
+├── .gitignore
+├── GEMINI_SYSTEM_PROMPT.md
+├── GITHUB_ACTIONS_GUIDE.md
+├── README.md
+├── com.drabdulmalek.manjaro-care.desktop
+├── core/
+    ├── __init__.py
+    ├── logger.py
+    ├── module_base.py
+    ├── privilege.py
+    ├── scanner.py
+├── gui/
+    ├── __init__.py
+    ├── custom_dialogs.py
+    ├── main_window.py
+    ├── module_card.py
+    ├── startup_dialog.py
+    ├── workers.py
+├── install.sh
+├── manjaro-care
+├── modules/
+    ├── __init__.py
+    ├── disk_analyzer.py
+    ├── failed_services.py
+    ├── journal_vacuum.py
+    ├── kernel_cleanup.py
+    ├── mirror_rank.py
+    ├── network_reset.py
+    ├── pkg_cleanup.py
+    ├── registry.py
+├── uninstall.sh
+```
+
+## 📁 محتوى الملفات
+
+### `README.md`
+**اللغة:** Markdown | **الأسطر:** 134 | **الحجم:** 4,113 حرف
+
+```markdown
+# Manjaro Care
+
+مركز صيانة رسومي لمانجارو/آرتش، بفلسفة نقرة-بدل-أمر — يهدف لإعطاء
+مستخدمي لينكس القادمين من Windows تجربة مشابهة لأدوات مثل TuneUp
+Utilities أو Advanced SystemCare، لكنها مبنية خصيصاً حول أدوات
+النظام الحقيقية (pacman, systemd, journalctl...) بدل منطق مغلق.
+
+## الفلسفة
+
+كل وحدة صيانة تلتزم بثلاث خطوات إلزامية:
+
+1. **فحص (scan)** — قراءة فقط، لا يُغيَّر أي شيء في النظام.
+2. **معاينة (preview)** — يعرض الأوامر الفعلية التي سستُنفَّذ، حرفياً،
+   قبل الموافقة.
+3. **تطبيق (apply)** — التنفيذ الفعلي، بعد تأكيد صريح من المستخدم.
+
+هذا يمنع نمط "زر نظّف الآن" الغامض في كثير من أدوات ويندوز المشابهة،
+ويحافظ على شفافية كاملة لمستخدم يفهم نظامه.
+
+## البنية
+
+```
+core/       المنطق المشترك (الكلاس الأساسي، الصلاحيات، اللوغ، الفاحص)
+modules/    كل وحدة صيانة كملف مستقل — إضافة وحدة جديدة لا تلمس core/
+gui/        واجهة PyQt5 — بطاقة موحّدة لكل وحدة + لوحة صحة عامة
+```
+
+### التنفيذ الخلفي (لا تجميد للواجهة)
+
+كل `scan()` و`apply()` — سواء لوحدة واحدة أو "الفحص الشامل" لكل
+الوحدات — يُنفَّذ عبر `gui/workers.py` (`QThread`)، لا في خيط Qt
+الرئيسي مباشرة. أي عملية تستغرق وقتاً (فحص قرص كبير، انتظار مصادقة
+polkit) لا تُجمِّد النافذة. عند إضافة وحدة جديدة لا داعي للقلق حيال
+هذا — الآلية عامة وتُطبَّق تلقائياً على كل الوحدات عبر `ModuleCard`.
+
+## التشغيل
+
+```bash
+# بعد التثبيت
+manjaro-care
+
+# أو ابحث عن "Manjaro Care" في قائمة التطبيقات
+```
+
+لا حاجة لإعداد `/etc/sudoers.d` — كل إجراء يحتاج صلاحيات جذر يمر عبر
+`pkexec` (polkit)، فتظهر نافذة مصادقة رسومية قياسية.
+
+## الوحدات المتوفرة حالياً
+
+| الوحدة | ماذا تفعل | مستوى الحساسية |
+|---|---|---|
+| `network_reset` | يشغّل reset-net لإصلاح الشبكة بعد فصل VPN | آمن |
+| `failed_services` | يكتشف خدمات systemd الفاشلة ويعيد تشغيلها | آمن |
+| `pkg_cleanup` | يحذف الحزم اليتيمة ويقلّص كاش pacman | متوسط |
+| `journal_vacuum` | يقلّص سجلات systemd journal إلى 300M | متوسط |
+| `mirror_rank` | يعيد اختبار وترتيب مرايا pacman حسب السرعة | آمن |
+| `kernel_cleanup` | يزيل نُوى Linux القديمة (يبقي الحالية + الأحدث دائماً) | **حساس** |
+| `disk_analyzer` | يعرض أكبر الملفات و/tmp — إخباري بحت، بلا حذف تلقائي | آمن (إخباري) |
+| `startup_manager` | إدارة فردية كاملة لبرامج بدء التشغيل (تفعيل/تعطيل لكل برنامج على حدة) | آمن، بلا صلاحيات جذر |
+
+### وحدات ذات واجهة مخصصة (`has_custom_ui`)
+
+`startup_manager` لا يناسبها نمط "فحص → معاينة → تطبيق واحد" لأن كل
+عنصر فيها قرار مستقل تماماً. تضع `has_custom_ui = True`، فتظهر
+بطاقتها بزر إضافي "إدارة فردية" يفتح نافذة مخصصة (`gui/startup_dialog.py`،
+مسجَّلة في `gui/custom_dialogs.py`).
+
+تتّبع معيار freedesktop.org Autostart: تعطيل برنامج نظام يُنشئ ملف
+"تجاوز" في `~/.config/autostart/` بدل تعديل ملف النظام (فلا حاجة
+لصلاحيات جذر إطلاقاً)، وإعادة التفعيل تحذف ملف التجاوز تلقائياً إن
+أصبح غير ضروري — مُختبَر ضد تراكم ملفات تجاوز زائدة عبر تبديلات متتالية.
+
+`disk_analyzer` تبقى إخبارية بحتة عمداً: حذف ملفات شخصية كبيرة قرار
+لا يجوز لأداة صيانة عامة اتخاذه نيابة عن المستخدم.
+
+### ملاحظة حول `kernel_cleanup`
+
+هذه الوحدة الأكثر حساسية في المشروع. `apply()` يرفض العمل تماماً إن
+تعذّر تحديد النواة الحالية بثقة كافية (بدل التخمين)، ولا يحذف النواة
+العاملة الآن تحت أي ظرف — حتى لو طُلب ذلك صراحة. اختبرها جيداً على
+جهاز غير حرِج قبل الاعتماد عليها.
+
+## إضافة وحدة جديدة
+
+1. أنشئ `modules/my_module.py` يرث من `MaintenanceModule` في
+   `core/module_base.py` وينفّذ `scan()` و`preview()` و`apply()`.
+2. سجّلها في `modules/registry.py`.
+
+لا حاجة لأي تعديل في `gui/` — البطاقة تُبنى تلقائياً من البيانات
+الوصفية للوحدة (`name`, `description`, `risk_level`, `icon`).
+
+## أفكار للوحدات القادمة
+
+- `snapper_cleanup` — إدارة لقطات Snapper القديمة
+- `flatpak_cleanup` — تنظيف إصدارات Flatpak القديمة غير المستخدمة
+- `gpu_driver_check` — فحص حالة تعريفات GPU واقتراح التحديث
+- `boot_loader` — عرض وإدارة إعدادات GRUB/systemd-boot
+
+## التثبيت
+
+### AUR (الأسهل)
+
+```bash
+yay -S manjaro-care
+```
+
+### يدوياً
+
+```bash
+git clone https://github.com/DrAbdulmalek/manjaro-care.git
+cd manjaro-care
+sudo bash install.sh
+```
+
+### التبعيات
+
+```bash
+sudo pacman -S python-pyqt5 polkit
+```
+
+### إلغاء التثبيت
+
+```bash
+# من AUR
+yay -R manjaro-care
+
+# يدوياً
+sudo bash uninstall.sh
+```
+
+## الترخيص
+
+MIT — مشروع مفتوح المصدر بالكامل.
+
+```
+
+---
+
+### `GITHUB_ACTIONS_GUIDE.md`
+**اللغة:** Markdown | **الأسطر:** 85 | **الحجم:** 2,001 حرف
+
+```markdown
+# 🚀 دليل استخدام سياق المشروع من الجوال
+
+## الهدف
+تشغيل سكريبت استخراج السياق أونلاين على GitHub دون الحاجة إلى كمبيوتر.
+
+---
+
+## ⚡ الخطوات (من الجوال)
+
+### 1. إضافة الملفات للمستودع
+
+في مستودعك على GitHub، أنشئ هذين الملفين (يمكنك من التطبيق أو المتصفح):
+
+```
+.github/
+├── scripts/
+│   └── repo_to_context.py    ← السكريبت
+└── workflows/
+    └── generate-context.yml  ← الـ Workflow
+```
+
+**للإنشاء من الجوال:**
+1. افتح تطبيق GitHub
+2. ادخل إلى مستودعك
+3. اضغط ➕ (Add file) → Create new file
+4. اكتب المسار: `.github/workflows/generate-context.yml`
+5. الصق محتوى ملف الـ Workflow
+6. اضغط Commit
+7. كرر نفس الخطوة لملف السكريبت: `.github/scripts/repo_to_context.py`
+
+---
+
+### 2. تشغيل الـ Workflow
+
+1. من تطبيق GitHub، ادخل إلى مستودعك
+2. اذهب إلى تبويب **Actions** (الأسفل)
+3. اختر **📦 Generate Project Context**
+4. اضغط **Run workflow** (الأعلى)
+5. اترك الإعدادات الافتراضية واضغط **Run workflow** مرة أخرى
+
+---
+
+### 3. تحميل الملف
+
+1. انتظر 30 ثانية حتى تكتمل العملية (سترى ✅ أخضر)
+2. ارجع إلى تبويب **Code** (الملفات)
+3. ستجد ملفاً جديداً باسم `project_context.txt`
+4. اضغط عليه → اضغط ⬇️ (Download) أو انسخ النص
+
+---
+
+## 📋 ما يفعله السكريبت
+
+- ✅ يقرأ كل ملفات الكود في المشروع
+- ✅ يستبعد الصور والملفات الثنائية
+- ✅ ينظمها في ملف نصي واحد منسق
+- ✅ يضيف شجرة الملفات + الإحصائيات
+- ✅ يدعم اللغة العربية (UTF-8)
+
+---
+
+## ⚙️ خيارات متقدمة (اختياري)
+
+عند تشغيل الـ Workflow، يمكنك تغيير:
+- **max_size**: حجم السياق (افتراضي 800000 حرف)
+- **split**: `true` إذا كان المشروع كبيراً (ينتج عدة ملفات)
+- **format**: `txt` أو `md`
+
+---
+
+## 🔄 الاستخدام مع Gemini Flash
+
+بعد تحميل `project_context.txt`:
+1. افتح [Gemini Flash](https://gemini.google.com) في متصفح الجوال
+2. ارفع الملف
+3. ابدأ المحادثة: *"هذا مشروعي. أريدك أن تُحسّن دالة X"*
+
+---
+
+## 🛟 في حال واجهت مشكلة
+
+- **العملية تفشل؟** تأكد أن السكريبت موجود في `.github/scripts/repo_to_context.py`
+- **الملف غير موجود؟** تأكد من صلاحيات الـ Workflow (يجب أن يحتوي على `permissions: contents: write`)
+- **مشروع كبير؟** شغل الـ Workflow مع `split = true`
+
+```
+
+---
+
+### `uninstall.sh`
+**اللغة:** Shell | **الأسطر:** 27 | **الحجم:** 739 حرف
+
+```shell
+#!/bin/bash
+# ============================================================
+# uninstall.sh — إلغاء تثبيت manjaro-care
+# الاستخدام: sudo bash uninstall.sh
+# ============================================================
+set -eu
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+if [[ $EUID -ne 0 ]]; then
+    echo -e "${RED}يجب تشغيل المُثبّت بصلاحيات الجذر:${NC} sudo bash $0"
+    exit 1
+fi
+
+echo -e "${BOLD}إلغاء تثبيت manjaro-care...${NC}"
+
+rm -f /usr/bin/manjaro-care
+rm -rf /opt/manjaro-care
+rm -f /usr/share/applications/com.drabdulmalek.manjaro-care.desktop
+rm -rf "${HOME}/.local/share/manjaro-care"
+
+update-desktop-database /usr/share/applications/ 2>/dev/null || true
+
+echo -e "${GREEN}تم إلغاء التثبيت بالكامل.${NC}"
+```
+
+---
+
+### `com.drabdulmalek.manjaro-care.desktop`
+**اللغة:** Other | **الأسطر:** 12 | **الحجم:** 380 حرف
+
+```other
+[Desktop Entry]
+Type=Application
+Name=Manjaro Care
+Name[ar]=مانجارو كير — صيانة النظام
+Comment=System maintenance center for Manjaro/Arch — click instead of typing commands
+Comment[ar]=مركز صيانة رسومي لمانجارو — نقرة بدل أمر
+Exec=manjaro-care
+Icon=applications-system
+Terminal=false
+Categories=System;Qt;Utility;
+Keywords=maintenance;clean;system;manjaro;arch;
+StartupNotify=true
+```
+
+---
+
+### `GEMINI_SYSTEM_PROMPT.md`
+**اللغة:** Markdown | **الأسطر:** 173 | **الحجم:** 4,441 حرف
+
+```markdown
+# 🎭 Generic System Prompt — Gemini Flash
+## مطور Python متخصص (Generic — قابل للتخصيص)
+
+---
+
+## 1. هويتك (Persona)
+
+أنت **مطور Python متمرس** متخصص في:
+- بناء أنظمة برمجية موثوقة وقابلة للصيانة
+- اتباع أفضل الممارسات (PEP 8, type hints, docstrings)
+- معالجة الأخطاء والـ edge cases
+- كتابة اختبارات شاملة
+
+خبرتك في بيئات الإنتاج:
+- الكود يُقرأ أكثر مما يُكتب — الوضوح أهم من الذكاء
+- الـ edge cases تحدث في الإنتاج دائماً
+- الاختبارات ليست رفاهية — هي ضمانة
+
+---
+
+## 2. سياق المشروع (Project Context)
+
+المشروع: **عام** — استخرج التفاصيل من `project_context.txt` المرفق.
+
+### التقنيات الافتراضية:
+- **Python 3.11+**
+- **Type Hints** إلزامية
+- **pytest** للاختبارات
+- **ruff** للـ linting
+- **mypy** للـ type checking
+
+> ⚠️ اقرأ السياق المرفق لتحديد التقنيات الفعلية (FastAPI? Django? CLI? etc.)
+
+---
+
+## 3. قيود صارمة (Hard Constraints)
+
+### أ. برمجية:
+- ✅ **Python 3.11+** — Type Hints، f-strings، match-case.
+- ✅ **PEP 8** — استخدم ruff للتطبيق التلقائي.
+- ✅ **Docstrings** — لكل دالة/كلاس عامة.
+- ✅ **Error handling** — `try/except` صريح مع رسائل واضحة.
+- ✅ **No magic numbers** — استخدم constants مسماة.
+
+### ب. هندسية:
+- ✅ **Single Responsibility** — كل دالة/كلاس يفعل شيئاً واحداً.
+- ✅ **DRY** — لا تكرّر الكود، استخرج المشترك.
+- ✅ **KISS** — الحل البسيط أفضل من المعقّد.
+- ❌ **ممنوع** `import *` — استخدم imports صريحة.
+- ❌ **ممنوع** `eval()` أو `exec()` إلا في حالات نادرة جداً مع تعليق مبرّر.
+
+### ج. اختبارية:
+- ✅ كل دالة عامة تحتاج unit test.
+- ✅غطِ edge cases (null, empty, boundary values).
+- ✅ استخدم `pytest` + `pytest-cov` (التغطية ≥ 80%).
+
+---
+
+## 4. مصطلحات هندسية معتمدة
+
+- `SRP` — Single Responsibility Principle
+- `DRY` — Don't Repeat Yourself
+- `KISS` — Keep It Simple, Stupid
+- `YAGNI` — You Aren't Gonna Need It
+- `TDD` — Test-Driven Development
+- `refactor` — إعادة هيكلة بدون تغيير السلوك
+- `technical debt` — دين تقني
+- `code smell` — رائحة كود (إشارة لمشكلة محتملة)
+- `edge case` — حالة حدية
+- `happy path` — المسار السعيد (الاستخدام النموذجي)
+
+---
+
+## 5. صيغة المخرجات المطلوبة (Output Format)
+
+```markdown
+### 📌 الملف: `path/to/file.py`
+
+**التغييرات:**
+1. ...
+2. ...
+
+**الكود المُحدَّث:**
+```python
+"""وصف مختصر للوحدة."""
+from __future__ import annotations
+from typing import Final
+
+# تعليق يشرح الـ constant
+EXAMPLE_CONSTANT: Final[str] = "value"
+
+def example_function(param: str) -> bool:
+    """
+    وصف الوظيفة.
+
+    Args:
+        param: وصف المعامل
+
+    Returns:
+        وصف النتيجة
+
+    Raises:
+        ValueError: إذا كان param فارغاً
+    """
+    try:
+        if not param:
+            raise ValueError("المعامل لا يمكن أن يكون فارغاً")
+        # المنطق
+        return True
+    except Exception as e:
+        raise RuntimeError(f"خطأ: {e}") from e
+```
+
+**ملاحظات المراجعة:**
+- نقطة 1
+```
+
+### قواعد:
+- 📝 تعليقات عربية، أسماء متغيرات إنجليزية.
+- 📝 Docstrings عربية مع Type Hints.
+- 📝 رسائل أخطاء عربية واضحة.
+
+---
+
+## 6. أمثلة على الطلبات (Request Examples)
+
+### ✅ طلب جيد:
+> "أعد كتابة دالة `process_data` في `src/core/processor.py` لتحسين الأداء. استخدم list comprehension بدلاً من حلقة for مع append. احتفظ بنفس الـ Signature. أضف اختبار في `tests/test_processor.py` يغطي: قائمة فارغة، قائمة بعنصر واحد، قائمة كبيرة (1000 عنصر)."
+
+### ❌ طلب سيء:
+> "حسّن الكود" (غامض — أي دالة؟ ما المقياس؟)
+
+### ✅ طلب جيد:
+> "أضف type hints إلى `src/utils/helpers.py`. استخدم `from __future__ import annotations` للسماح بـ PEP 604 syntax (`X | Y`). أضف mypy config في `pyproject.toml` مع `strict = true`."
+
+### ❌ طلب سيء:
+> "أضف types" (غامض — أي ملف؟ أي مستوى صرامة؟)
+
+---
+
+## 7. سياق المشروع المرفق (Attached Context)
+
+📎 **ملف `project_context.txt` المرفق** يحتوي على:
+- شجرة ملفات المشروع بالكامل
+- محتوى كل ملف
+- الإحصائيات والاعتماديات
+
+**كيفية الاستخدام:**
+- ابحث عن الملف المطلوب قبل الكتابة.
+- لا تختلق أسماء ملفات/دوال غير موجودة.
+- إذا لم تجد الملف، اسأل: "هذا الملف غير موجود في السياق — هل تقصد X؟"
+
+---
+
+## 8. قواعد التفاعل (Interaction Rules)
+
+1. **اسأل قبل أن تكتب** — Clarifying Questions عند الغموض.
+2. **اشرح النهج أولاً** — Approach قبل Implementation.
+3. **لا تحذف** — احترم الدوال/الكلاسات الموجودة.
+4. **اختبر** — كل دالة جديدة تحتاج unit test.
+5. **توافق البنية** — احترم بنية المشروع الموجودة.
+6. **لا تكسر الـ imports** — تحقق قبل الـ commit.
+
+---
+
+## 9. التذكير النهائي (Final Reminder)
+
+> **"الكود الجيد يُقرأ في 5 ثوانٍ ويُفهم. الكود السيء يأخذ ساعات. اكتب الكود كأن من سيقرؤه بعدك مريض نفسي يعرف مكان سكنك."**
+
+---
+
+**جاهز للعمل. ابدأ بقراءة `project_context.txt` المرفق، ثم انتظر طلبي.**
+
+```
+
+---
+
+### `manjaro-care`
+**اللغة:** Other | **الأسطر:** 48 | **الحجم:** 1,261 حرف
+
+```other
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+manjaro-care — نقطة الدخول الرئيسية.
+
+الاستخدام:
+    python3 manjaro-care
+أو بعد التثبيت:
+    manjaro-care
+"""
+
+import sys
+import os
+
+# يسمح بتشغيل التطبيق مباشرة من مجلد المصدر دون تثبيت (python3 manjaro-care)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import Qt
+
+from gui.main_window import MainWindow
+
+
+def main() -> int:
+    os.environ.setdefault("QT_QPA_PLATFORMTHEME", "kde")  # يحترم إعداد المستخدم إن وُجد مسبقاً، ويجب ضبطه قبل QApplication
+    app = QApplication(sys.argv)
+    app.setApplicationName("Manjaro Care")
+    app.setLayoutDirection(Qt.RightToLeft)
+
+    # ثيم داكن بسيط متناسق مع KDE Plasma الافتراضي
+    app.setStyleSheet("""
+        QMainWindow, QWidget { background-color: #232323; color: #e0e0e0; }
+        QPushButton {
+            background-color: #3a3a3a; color: #e0e0e0;
+            border: 1px solid #4a4a4a; border-radius: 6px; padding: 6px 14px;
+        }
+        QPushButton:hover { background-color: #454545; }
+        QPushButton:pressed { background-color: #2a2a2a; }
+    """)
+
+    window = MainWindow()
+    window.show()
+    return app.exec_()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+```
+
+---
+
+### `install.sh`
+**اللغة:** Shell | **الأسطر:** 95 | **الحجم:** 3,327 حرف
+
+```shell
+#!/bin/bash
+# ============================================================
+# install.sh — مُثبّت manjaro-care
+# ينسخ المشروع، يضبط الصلاحيات، ينشأ نقطة الدخول، يثبّت القائمة
+# الاستخدام:  sudo bash install.sh
+# ============================================================
+set -eu
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="/opt/manjaro-care"
+
+echo -e "${CYAN}${BOLD}"
+echo "══════════════════════════════════════════════════"
+echo "  manjaro-care v1.1.0 — المُثبّت"
+echo "══════════════════════════════════════════════════"
+echo -e "${NC}"
+
+if [[ $EUID -ne 0 ]]; then
+    echo -e "${RED}يجب تشغيل المُثبّت بصلاحيات الجذر:${NC} sudo bash $0"
+    exit 1
+fi
+
+CURRENT_USER="${SUDO_USER:-$USER}"
+echo -e "المستخدم: ${BOLD}${CURRENT_USER}${NC}"
+echo ""
+
+# ── 1. نسخ ملفات المشروع ──
+echo -e "${BOLD}[1/4] تثبيت ملفات المشروع...${NC}"
+rm -rf "$INSTALL_DIR"
+mkdir -p "$INSTALL_DIR"
+cp -r "${SCRIPT_DIR}/core" "$INSTALL_DIR/core"
+cp -r "${SCRIPT_DIR}/modules" "$INSTALL_DIR/modules"
+cp -r "${SCRIPT_DIR}/gui" "$INSTALL_DIR/gui"
+# سكربت الدخول نفسه (manjaro-care الموجود في جذر المشروع) — مصدر
+# وحيد يُستخدم مباشرة، بدل توليد نسخة مكرَّرة inline هنا وفي PKGBUILD.
+# هو "يحدد موقعه" تلقائياً عبر __file__، فيعمل بشكل صحيح من أي مسار تثبيت.
+cp "${SCRIPT_DIR}/manjaro-care" "$INSTALL_DIR/manjaro-care"
+chmod 755 "$INSTALL_DIR/manjaro-care"
+echo -e "  ${GREEN}${INSTALL_DIR}/${NC}"
+
+# ── 2. إنشاء نقطة دخول رفيعة في /usr/bin ──
+echo -e "${BOLD}[2/4] إنشاء نقطة الدخول...${NC}"
+cat > /usr/bin/manjaro-care << 'ENTRY'
+#!/bin/bash
+exec /usr/bin/python3 /opt/manjaro-care/manjaro-care "$@"
+ENTRY
+chmod 755 /usr/bin/manjaro-care
+echo -e "  ${GREEN}/usr/bin/manjaro-care${NC}"
+
+# ── 3. تثبيت ملف .desktop ──
+echo -e "${BOLD}[3/4] تثبيت ملف القائمة...${NC}"
+cp "${SCRIPT_DIR}/com.drabdulmalek.manjaro-care.desktop" /usr/share/applications/
+chmod 644 /usr/share/applications/com.drabdulmalek.manjaro-care.desktop
+update-desktop-database /usr/share/applications/ 2>/dev/null || true
+echo -e "  ${GREEN}تم تثبيت القائمة${NC}"
+# ملاحظة: لا يوجد ملف polkit .policy مخصص عمداً — كل استدعاءات pkexec
+# تستهدف أدوات نظام قياسية (pacman, systemctl, journalctl...) مباشرة،
+# فتظهر نافذة مصادقة polkit العامة القياسية. ربط سياسة مخصصة بمسار
+# /usr/bin/manjaro-care لن يُطابق أياً من هذه الاستدعاءات الفعلية.
+
+# ── 4. فحص التبعيات ──
+echo -e "${BOLD}[4/4] فحص التبعيات...${NC}"
+MISSING=()
+for pkg in python-pyqt5 polkit pacman; do
+    if ! /usr/bin/pacman -Qi "$pkg" &>/dev/null; then
+        MISSING+=("$pkg")
+    fi
+done
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+    echo -e "  ${YELLOW}حزم مفقودة: ${MISSING[*]}${NC}"
+    echo -e "  ${YELLOW}ثبّتها: sudo pacman -S ${MISSING[*]}${NC}"
+else
+    echo -e "  ${GREEN}كل التبعيات متوفرة${NC}"
+fi
+
+if [[ -x /usr/bin/kbuildsycoca6 ]]; then
+    su - "${CURRENT_USER}" -c "/usr/bin/kbuildsycoca6" 2>/dev/null || true
+fi
+
+echo ""
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}  تم التثبيت بنجاح!${NC}"
+echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BOLD}التشغيل:${NC}"
+echo -e "  ${GREEN}manjaro-care${NC}"
+echo -e "  أو ابحث عن ${GREEN}\"Manjaro Care\"${NC} في قائمة التطبيقات"
+
+```
+
+---
+
+### `.gitignore`
+**اللغة:** Other | **الأسطر:** 31 | **الحجم:** 218 حرف
+
+```other
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.venv/
+venv/
+
+# Logs
+*.log
+
+# Python virtual env
+.python-version
+```
+
+---
+
+### `modules/journal_vacuum.py`
+**اللغة:** Python | **الأسطر:** 101 | **الحجم:** 3,621 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `import re`
+- `from core.module_base import (`
+- `from core.privilege import run_unprivileged, run_privileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/journal_vacuum.py
+===========================
+تقليص سجلات systemd journal التي تتضخم بمرور الوقت (خصوصاً مع
+persistent journal المفعّل افتراضياً في مانجارو).
+
+الفحص: journalctl --disk-usage (قراءة فقط).
+التطبيق: journalctl --vacuum-size=<حد> — يحذف أقدم السجلات حتى يصل
+الحجم للحد المطلوب. الحد الافتراضي هنا 300M (متوازن: يبقي أسابيع من
+السجلات لتشخيص المشاكل، ويوفر مساحة حقيقية إن كان الحجم الحالي كبيراً).
+"""
+
+from __future__ import annotations
+import re
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_unprivileged, run_privileged
+from core.logger import get_logger
+
+log = get_logger("journal_vacuum")
+
+# الحد الذي نُبقي عليه بعد التقليص — متوازن بين توفير المساحة والاحتفاظ بتاريخ كافٍ للتشخيص
+_TARGET_SIZE = "300M"
+_WARN_THRESHOLD_MB = 500
+_CRITICAL_THRESHOLD_MB = 1500
+
+
+def _get_journal_size_mb() -> float:
+    result = run_unprivileged(["journalctl", "--disk-usage"])
+    if not result.ok:
+        return 0.0
+    # المخرج عادة: "Archived and active journals take up 512.0M in the file system."
+    match = re.search(r"([\d.]+)\s*([KMGT])", result.stdout)
+    if not match:
+        return 0.0
+    value, unit = float(match.group(1)), match.group(2)
+    multipliers = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}
+    return value * multipliers.get(unit, 1)
+
+
+class JournalVacuumModule(MaintenanceModule):
+    name = "تقليص سجلات systemd"
+    slug = "journal_vacuum"
+    description = f"يقلّص journal إلى {_TARGET_SIZE} مع الإبقاء على أحدث السجلات للتشخيص"
+    needs_root = True
+    risk_level = RiskLevel.MODERATE  # يحذف سجلات قديمة نهائياً — لا تراجع
+    icon = "text-x-generic"
+
+    def scan(self) -> ScanResult:
+        size_mb = _get_journal_size_mb()
+        findings: list[ScanFinding] = []
+
+        if size_mb >= _CRITICAL_THRESHOLD_MB:
+            findings.append(ScanFinding(
+                title=f"سجلات النظام كبيرة جداً: {size_mb:.0f} MB",
+                detail=f"يُنصح بالتقليص إلى {_TARGET_SIZE} لتحرير مساحة القرص.",
+                severity=Severity.CRITICAL,
+                raw_value=size_mb,
+            ))
+        elif size_mb >= _WARN_THRESHOLD_MB:
+            findings.append(ScanFinding(
+                title=f"حجم سجلات النظام: {size_mb:.0f} MB",
+                detail=f"يمكن تقليصه إلى {_TARGET_SIZE} إن احتجت مساحة إضافية.",
+                severity=Severity.WARNING,
+                raw_value=size_mb,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title=f"حجم سجلات النظام طبيعي: {size_mb:.0f} MB",
+                detail="لا حاجة للتقليص حالياً.",
+                severity=Severity.OK,
+                actionable=False,
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    def preview(self) -> list[PreviewStep]:
+        return [PreviewStep(
+            description=f"تقليص journal إلى {_TARGET_SIZE} (حذف أقدم السجلات فقط)",
+            command=f"journalctl --vacuum-size={_TARGET_SIZE}",
+        )]
+
+    def apply(self) -> ApplyResult:
+        result = run_privileged(["journalctl", f"--vacuum-size={_TARGET_SIZE}"])
+        if result.ok:
+            return ApplyResult(
+                success=True,
+                message=f"تم تقليص السجلات إلى {_TARGET_SIZE}",
+                log_output=result.stdout + result.stderr,
+            )
+        return ApplyResult(
+            success=False,
+            message=f"فشل التقليص (كود {result.returncode})",
+            log_output=result.stdout + result.stderr,
+        )
+
+```
+
+---
+
+### `modules/disk_analyzer.py`
+**اللغة:** Python | **الأسطر:** 128 | **الحجم:** 4,374 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from pathlib import Path`
+- `from core.module_base import (`
+- `from core.privilege import run_unprivileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/disk_analyzer.py
+===========================
+وحدة "إخبارية" (informational) — تعرض أكبر 10 ملفات في مجلد المستخدم
+وحجم /tmp، دون تنفيذ أي حذف تلقائي. حذف الملفات الشخصية قرار لا يجوز
+لأداة صيانة عامة اتخاذه نيابة عن المستخدم — الفحص هنا يعطي معلومة
+لاتخاذ قرار يدوي (نفس نهج "Disk Analyzer" في WinDirStat، لا "حذف تلقائي").
+
+لذلك: findings.actionable = False دائماً، ولا preview()/apply() فعلي.
+هذا نمط متعمَّد ضمن core/module_base.py: وحدة قد تكون "إخبارية بحتة".
+"""
+
+from __future__ import annotations
+from pathlib import Path
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_unprivileged
+from core.logger import get_logger
+
+log = get_logger("disk_analyzer")
+
+_TOP_N = 10
+
+
+def _largest_files_in_home() -> list[tuple[str, int]]:
+    home = str(Path.home())
+    # -xdev: لا يعبر نقاط التحميل
+    # استثناء المجلدات الثقيلة عديمة الفائدة (.cache, .mozilla, .steam...)
+    # لتقليل وقت البحث من ~30s إلى ~3-5s
+    result = run_unprivileged(
+        ["/usr/bin/find", home, "-xdev", "-type", "f", "-size", "+100M",
+         "-not", "-path", "*/.cache/*",
+         "-not", "-path", "*/.local/share/Trash/*",
+         "-not", "-path", "*/.mozilla/*",
+         "-not", "-path", "*/.config/google-chrome/*",
+         "-not", "-path", "*/.config/chromium/*",
+         "-not", "-path", "*/node_modules/*",
+         "-not", "-path", "*/.local/share/containers/*",
+         "-not", "-path", "*/.steam/*",
+         "-not", "-path", "*/.var/*",
+         "-printf", "%s %p\n"],
+        timeout=30,
+    )
+    if not result.ok and not result.stdout:
+        return []
+    entries = []
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2 and parts[0].isdigit():
+            entries.append((parts[1], int(parts[0])))
+    entries.sort(key=lambda e: e[1], reverse=True)
+    return entries[:_TOP_N]
+
+
+def _tmp_size_mb() -> float:
+    result = run_unprivileged(["du", "-sm", "/tmp"])
+    if not result.ok or not result.stdout.strip():
+        return 0.0
+    try:
+        return float(result.stdout.split()[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _human_size(num_bytes: int) -> str:
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+class DiskAnalyzerModule(MaintenanceModule):
+    name = "تحليل مساحة القرص"
+    slug = "disk_analyzer"
+    description = "يعرض أكبر الملفات في مجلد المستخدم وحجم /tmp — للاطلاع فقط، بلا حذف تلقائي"
+    needs_root = False
+    risk_level = RiskLevel.SAFE
+    icon = "drive-harddisk"
+
+    def scan(self) -> ScanResult:
+        findings: list[ScanFinding] = []
+        large_files = _largest_files_in_home()
+
+        if large_files:
+            detail_lines = [f"{_human_size(size)} — {path}" for path, size in large_files]
+            findings.append(ScanFinding(
+                title=f"أكبر {len(large_files)} ملفات في مجلد المستخدم (أكبر من 100MB)",
+                detail="\n".join(detail_lines),
+                severity=Severity.INFO,
+                actionable=False,  # معلومة فقط — الحذف قرار يدوي بحت
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="لا ملفات كبيرة بشكل ملحوظ",
+                detail="لا يوجد ملف أكبر من 100MB في مجلد المستخدم.",
+                severity=Severity.OK,
+                actionable=False,
+            ))
+
+        tmp_mb = _tmp_size_mb()
+        if tmp_mb > 1024:
+            findings.append(ScanFinding(
+                title=f"مجلد /tmp كبير: {tmp_mb:.0f} MB",
+                detail="يُنظَّف عادة تلقائياً عند إعادة الإقلاع — لا حاجة لتدخّل يدوي عادة.",
+                severity=Severity.INFO,
+                actionable=False,
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    def preview(self) -> list[PreviewStep]:
+        return [PreviewStep(
+            description="هذه وحدة إخبارية فقط — لا يوجد إجراء تلقائي. راجع نتائج الفحص واحذف يدوياً ما تراه مناسباً.",
+        )]
+
+    def apply(self) -> ApplyResult:
+        return ApplyResult(
+            success=True,
+            message="لا إجراء تلقائي لهذه الوحدة — هي للاطلاع فقط.",
+        )
+
+```
+
+---
+
+### `modules/failed_services.py`
+**اللغة:** Python | **الأسطر:** 106 | **الحجم:** 3,526 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from core.module_base import (`
+- `from core.privilege import run_unprivileged, run_privileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/failed_services.py
+============================
+يكتشف خدمات systemd الفاشلة (systemctl --failed) ويقترح إعادة تشغيلها
+أو عرض سجلّها. هذه الوحدة تعطي "شعور ذكاء" فوري للمستخدم القادم من
+Windows، حيث لا يوجد مكافئ مباشر ومرئي لهذا في واجهة سطح المكتب.
+
+الفحص آمن تماماً (قراءة فقط). التطبيق (restart) يحتاج جذر لأنه systemctl
+restart، لكن هذا إجراء اعتيادي ومنخفض الخطورة (safe) لأنه لا يحذف شيئاً.
+"""
+
+from __future__ import annotations
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_unprivileged, run_privileged
+from core.logger import get_logger
+
+log = get_logger("failed_services")
+
+
+def _get_failed_units() -> list[str]:
+    result = run_unprivileged(
+        ["systemctl", "--failed", "--no-legend", "--plain"]
+    )
+    if not result.stdout.strip():
+        return []
+    units = []
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if parts:
+            units.append(parts[0])
+    return units
+
+
+class FailedServicesModule(MaintenanceModule):
+    name = "الخدمات الفاشلة"
+    slug = "failed_services"
+    description = "كشف خدمات systemd المتوقفة عن العمل بسبب خطأ، واقتراح إعادة تشغيلها"
+    needs_root = True
+    risk_level = RiskLevel.SAFE  # إعادة تشغيل خدمة لا تحذف شيئاً
+    icon = "dialog-warning"
+
+    def scan(self) -> ScanResult:
+        units = _get_failed_units()
+        findings: list[ScanFinding] = []
+
+        if units:
+            findings.append(ScanFinding(
+                title=f"{len(units)} خدمة نظام متوقفة بخطأ",
+                detail="خدمات systemd في حالة failed:\n" + "\n".join(units),
+                severity=Severity.CRITICAL if len(units) > 2 else Severity.WARNING,
+                raw_value=units,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="كل خدمات النظام تعمل بشكل طبيعي",
+                detail="لا توجد خدمات systemd فاشلة حالياً.",
+                severity=Severity.OK,
+                actionable=False,
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    def preview(self) -> list[PreviewStep]:
+        units = _get_failed_units()
+        return [
+            PreviewStep(
+                description=f"إعادة تشغيل الخدمة: {unit}",
+                command=f"systemctl restart {unit}",
+            )
+            for unit in units
+        ]
+
+    def apply(self) -> ApplyResult:
+        units = _get_failed_units()
+        if not units:
+            return ApplyResult(success=True, message="لا توجد خدمات لإعادة تشغيلها")
+
+        logs = []
+        failed_restarts = []
+        for unit in units:
+            result = run_privileged(["systemctl", "restart", unit])
+            logs.append(f"$ systemctl restart {unit}\n{result.stdout}{result.stderr}")
+            if not result.ok:
+                failed_restarts.append(unit)
+
+        if failed_restarts:
+            hint = (" — بعض الخدمات (مثل tlp) تفشل إعادة تشغيلها لأسباب بنيوية "
+                    "ولا تحتاج تدخلاً، راجع: journalctl -u <اسم_الخدمة> -n 20")
+            return ApplyResult(
+                success=False,
+                message=f"فشلت إعادة تشغيل: {', '.join(failed_restarts)}{hint}",
+                log_output="\n".join(logs),
+            )
+
+        return ApplyResult(
+            success=True,
+            message=f"تمت إعادة تشغيل {len(units)} خدمة بنجاح",
+            log_output="\n".join(logs),
+        )
+
+```
+
+---
+
+### `modules/__init__.py`
+**اللغة:** Python | **الأسطر:** 1 | **الحجم:** 0 حرف
+
+```python
+
+```
+
+---
+
+### `modules/registry.py`
+**اللغة:** Python | **الأسطر:** 46 | **الحجم:** 1,515 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from core.module_base import MaintenanceModule`
+- `from modules.network_reset import NetworkResetModule`
+- `from modules.pkg_cleanup import PackageCleanupModule`
+- `from modules.failed_services import FailedServicesModule`
+- `from modules.journal_vacuum import JournalVacuumModule`
+- `from modules.mirror_rank import MirrorRankModule`
+- `from modules.kernel_cleanup import KernelCleanupModule`
+- `from modules.disk_analyzer import DiskAnalyzerModule`
+- `from modules.startup_manager import StartupManagerModule`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/registry.py
+====================
+نقطة التسجيل المركزية لكل وحدات الصيانة. إضافة وحدة جديدة مستقبلاً
+(mirror_rank, journal_vacuum, kernel_cleanup, startup_manager...)
+تتطلب فقط:
+  1) كتابة ملف modules/xxx.py يرث من MaintenanceModule
+  2) إضافة سطر استيراد + إضافة الكلاس هنا
+
+لا حاجة لتعديل أي كود في core/ أو gui/ عند إضافة وحدة جديدة.
+"""
+
+from __future__ import annotations
+
+from core.module_base import MaintenanceModule
+
+from modules.network_reset import NetworkResetModule
+from modules.pkg_cleanup import PackageCleanupModule
+from modules.failed_services import FailedServicesModule
+from modules.journal_vacuum import JournalVacuumModule
+from modules.mirror_rank import MirrorRankModule
+from modules.kernel_cleanup import KernelCleanupModule
+from modules.disk_analyzer import DiskAnalyzerModule
+from modules.startup_manager import StartupManagerModule
+
+
+def get_all_modules() -> list[MaintenanceModule]:
+    """يُرجع نسخة جديدة من كل وحدة مسجّلة، بالترتيب المطلوب عرضه في الواجهة.
+
+    الترتيب: الأكثر أماناً/فائدة يومية أولاً، الأكثر حساسية (kernel_cleanup)
+    قرب النهاية، والوحدات الإخبارية البحتة (disk_analyzer, startup_manager)
+    في الآخر لأنها لا تتطلب قراراً فورياً.
+    """
+    return [
+        NetworkResetModule(),
+        FailedServicesModule(),
+        PackageCleanupModule(),
+        JournalVacuumModule(),
+        MirrorRankModule(),
+        KernelCleanupModule(),
+        DiskAnalyzerModule(),
+        StartupManagerModule(),
+    ]
+
+```
+
+---
+
+### `modules/pkg_cleanup.py`
+**اللغة:** Python | **الأسطر:** 134 | **الحجم:** 4,700 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from core.module_base import (`
+- `from core.privilege import run_unprivileged, run_privileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/pkg_cleanup.py
+=======================
+تنظيف الحزم اليتيمة (orphans) وكاش pacman القديم.
+
+الفحص (scan) للقراءة فقط:
+  - pacman -Qtdq             → قائمة الحزم اليتيمة (لا تعتمد عليها أي حزمة أخرى)
+  - حساب حجم /var/cache/pacman/pkg
+
+التطبيق (apply) يحتاج جذر لأنه يعدّل قاعدة بيانات الحزم والكاش:
+  - pacman -Rns <الحزم اليتيمة>   (بعد موافقة صريحة، مع قائمة الأسماء)
+  - paccache -r                   (يبقي آخر 3 نسخ فقط من كل حزمة، النمط الافتراضي الآمن)
+"""
+
+from __future__ import annotations
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_unprivileged, run_privileged
+from core.logger import get_logger
+
+log = get_logger("pkg_cleanup")
+
+
+def _get_orphans() -> list[str]:
+    result = run_unprivileged(["pacman", "-Qtdq"])
+    if not result.ok:
+        # pacman -Qtdq يُرجع كود خروج غير صفري إن لم توجد حزم يتيمة — هذا طبيعي، ليس خطأ
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _get_cache_size_mb() -> float:
+    result = run_unprivileged(["du", "-sm", "/var/cache/pacman/pkg"])
+    if not result.ok or not result.stdout.strip():
+        return 0.0
+    try:
+        return float(result.stdout.split()[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+class PackageCleanupModule(MaintenanceModule):
+    name = "تنظيف الحزم"
+    slug = "pkg_cleanup"
+    description = "إزالة الحزم اليتيمة وتقليص كاش pacman القديم"
+    needs_root = True
+    risk_level = RiskLevel.MODERATE  # حذف حزم — قابل للتراجع بإعادة التثبيت، لكن ليس فورياً
+    icon = "package-x-generic"
+
+    def scan(self) -> ScanResult:
+        orphans = _get_orphans()
+        cache_mb = _get_cache_size_mb()
+        findings: list[ScanFinding] = []
+
+        if orphans:
+            findings.append(ScanFinding(
+                title=f"{len(orphans)} حزمة يتيمة غير مستخدمة",
+                detail="حزم مثبَّتة كاعتماديات لبرامج لم تعد موجودة:\n" + "\n".join(orphans),
+                severity=Severity.WARNING if len(orphans) > 5 else Severity.INFO,
+                raw_value=orphans,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="لا توجد حزم يتيمة",
+                detail="النظام نظيف من الاعتماديات المهجورة.",
+                severity=Severity.OK,
+                actionable=False,
+            ))
+
+        if cache_mb > 2048:
+            findings.append(ScanFinding(
+                title=f"كاش pacman كبير: {cache_mb:.0f} MB",
+                detail="يمكن تقليصه للاحتفاظ بآخر 3 نسخ فقط من كل حزمة (paccache -r).",
+                severity=Severity.WARNING,
+                raw_value=cache_mb,
+            ))
+        elif cache_mb > 512:
+            findings.append(ScanFinding(
+                title=f"حجم كاش pacman: {cache_mb:.0f} MB",
+                detail="حجم معقول، لكن يمكن تقليصه إن أردت مساحة إضافية.",
+                severity=Severity.INFO,
+                raw_value=cache_mb,
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    def preview(self) -> list[PreviewStep]:
+        orphans = _get_orphans()
+        steps: list[PreviewStep] = []
+        if orphans:
+            steps.append(PreviewStep(
+                description=f"إزالة {len(orphans)} حزمة يتيمة: {', '.join(orphans)}",
+                command="pacman -Rns " + " ".join(orphans),
+            ))
+        steps.append(PreviewStep(
+            description="تقليص كاش pacman (الإبقاء على آخر 3 نسخ من كل حزمة)",
+            command="paccache -r",
+        ))
+        return steps
+
+    def apply(self) -> ApplyResult:
+        orphans = _get_orphans()
+        logs = []
+
+        if orphans:
+            result = run_privileged(["pacman", "-Rns", "--noconfirm", *orphans])
+            logs.append(result.stdout + result.stderr)
+            if not result.ok:
+                return ApplyResult(
+                    success=False,
+                    message=f"فشل حذف الحزم اليتيمة (كود {result.returncode})",
+                    log_output="\n".join(logs),
+                )
+
+        cache_result = run_privileged(["paccache", "-r"])
+        logs.append(cache_result.stdout + cache_result.stderr)
+        if not cache_result.ok:
+            return ApplyResult(
+                success=False,
+                message="نجحت إزالة الحزم اليتيمة، لكن فشل تقليص الكاش (paccache قد يكون غير مثبت)",
+                log_output="\n".join(logs),
+            )
+
+        return ApplyResult(
+            success=True,
+            message=f"تم: إزالة {len(orphans)} حزمة يتيمة وتقليص الكاش",
+            log_output="\n".join(logs),
+        )
+
+```
+
+---
+
+### `modules/kernel_cleanup.py`
+**اللغة:** Python | **الأسطر:** 183 | **الحجم:** 6,698 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `import re`
+- `from core.module_base import (`
+- `from core.privilege import run_unprivileged, run_privileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/kernel_cleanup.py
+============================
+يكتشف نُوى Linux المثبَّتة (حزم مثل linux515, linux61...) ويقترح إزالة
+القديمة منها، مع الإبقاء دائماً على:
+  1) النواة التي يعمل عليها النظام حالياً (لا يمكن حذفها أبداً)
+  2) أحدث نواة مثبَّتة (حتى لو لم تكن قيد التشغيل الآن)
+
+هذه الوحدة الأكثر حساسية في المشروع — خطأ في تحديد "النواة الحالية"
+قد يعطّل الإقلاع. لذلك:
+  - risk_level = DESTRUCTIVE (يظهر تحذير أوضح في الواجهة)
+  - apply() يرفض العمل إن تعذّر تحديد النواة الحالية بثقة، بدل التخمين
+  - لا يحذف النواة الحالية تحت أي ظرف، حتى لو طلب المستخدم ذلك
+"""
+
+from __future__ import annotations
+import re
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_unprivileged, run_privileged
+from core.logger import get_logger
+
+log = get_logger("kernel_cleanup")
+
+_KERNEL_PKG_RE = re.compile(r"^linux(\d+)$")
+
+
+def _installed_kernel_packages() -> list[str]:
+    """يُرجع أسماء حزم النوى المثبَّتة، مثل ['linux54', 'linux515', 'linux61']."""
+    result = run_unprivileged(["pacman", "-Qq"])
+    if not result.ok:
+        return []
+    packages = []
+    for line in result.stdout.splitlines():
+        name = line.strip()
+        if _KERNEL_PKG_RE.match(name):
+            packages.append(name)
+    return packages
+
+
+def _running_kernel_package() -> str | None:
+    """
+    يحوّل uname -r (مثل '6.6.10-1-MANJARO') إلى اسم حزمة متوقَّع
+    (مثل 'linux66'). يُرجع None إن تعذّر التطابق بثقة — في هذه الحالة
+    apply() يرفض المتابعة بدل التخمين.
+    """
+    result = run_unprivileged(["uname", "-r"])
+    if not result.ok:
+        return None
+    match = re.match(r"(\d+)\.(\d+)", result.stdout.strip())
+    if not match:
+        return None
+    major, minor = match.groups()
+    candidate = f"linux{major}{minor}"
+
+    installed = _installed_kernel_packages()
+    if candidate in installed:
+        return candidate
+
+    # النظام قد يستخدم نواة بأرقام مختلفة عن اسم الحزمة (نادر لكن ممكن)؛
+    # لا نخمّن — نُرجع None ونترك apply() يرفض العمل بأمان.
+    return None
+
+
+def _kernel_version_key(pkg_name: str) -> int:
+    match = _KERNEL_PKG_RE.match(pkg_name)
+    return int(match.group(1)) if match else 0
+
+
+class KernelCleanupModule(MaintenanceModule):
+    name = "تنظيف نُوى Linux القديمة"
+    slug = "kernel_cleanup"
+    description = "إزالة نُوى Linux غير المستخدمة، مع إبقاء النواة الحالية والأحدث دائماً"
+    needs_root = True
+    risk_level = RiskLevel.DESTRUCTIVE
+    icon = "system-software-update"
+
+    def scan(self) -> ScanResult:
+        installed = _installed_kernel_packages()
+        running = _running_kernel_package()
+        findings: list[ScanFinding] = []
+
+        if len(installed) <= 2:
+            findings.append(ScanFinding(
+                title=f"{len(installed)} نواة مثبَّتة فقط",
+                detail="لا حاجة للتنظيف — العدد الحالي معقول.",
+                severity=Severity.OK,
+                actionable=False,
+            ))
+            return ScanResult(module_name=self.name, findings=findings)
+
+        removable = self._compute_removable(installed, running)
+        if removable:
+            findings.append(ScanFinding(
+                title=f"{len(removable)} نواة قديمة قابلة للإزالة",
+                detail=(
+                    f"مثبَّت حالياً: {', '.join(sorted(installed))}\n"
+                    f"النواة العاملة الآن: {running or 'تعذّر تحديدها بثقة'}\n"
+                    f"مرشّحة للإزالة: {', '.join(removable)}"
+                ),
+                severity=Severity.WARNING,
+                actionable=bool(running),  # لا نسمح بالإجراء إن تعذّر تحديد النواة الحالية
+                raw_value=removable,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="لا نُوى قابلة للإزالة بأمان",
+                detail="تعذّر تحديد النواة الحالية بثقة كافية — لن تُقترح إزالة تلقائية.",
+                severity=Severity.INFO,
+                actionable=False,
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    @staticmethod
+    def _compute_removable(installed: list[str], running: str | None) -> list[str]:
+        if not running or running not in installed:
+            return []  # لا نتصرف أبداً دون تحديد موثوق للنواة الحالية
+        newest = max(installed, key=_kernel_version_key)
+        keep = {running, newest}
+        return sorted(pkg for pkg in installed if pkg not in keep)
+
+    def preview(self) -> list[PreviewStep]:
+        installed = _installed_kernel_packages()
+        running = _running_kernel_package()
+        removable = self._compute_removable(installed, running)
+
+        if not removable:
+            return [PreviewStep(
+                description="لا يوجد إجراء آمن للتنفيذ حالياً (تعذّر تحديد النواة الحالية بثقة).",
+            )]
+
+        packages_and_headers = []
+        for pkg in removable:
+            packages_and_headers.append(pkg)
+            packages_and_headers.append(f"{pkg}-headers")  # إن وُجدت حزمة headers مرافقة
+
+        return [PreviewStep(
+            description=f"إزالة النُوى القديمة: {', '.join(removable)} (مع حزم headers المرافقة إن وُجدت)",
+            command="pacman -Rns " + " ".join(packages_and_headers),
+        )]
+
+    def apply(self) -> ApplyResult:
+        installed = _installed_kernel_packages()
+        running = _running_kernel_package()
+
+        if not running or running not in installed:
+            return ApplyResult(
+                success=False,
+                message="تم رفض التنفيذ عمداً: تعذّر تحديد النواة الحالية بثقة كافية — "
+                        "لتفادي أي احتمال لحذف نواة قيد التشغيل.",
+            )
+
+        removable = self._compute_removable(installed, running)
+        if not removable:
+            return ApplyResult(success=True, message="لا نُوى قديمة تحتاج إزالة")
+
+        # أمان إضافي: تأكيد صريح أن النواة الحالية ليست ضمن قائمة الحذف
+        assert running not in removable, "خطأ داخلي: النواة الحالية ضمن قائمة الحذف!"
+
+        targets = []
+        for pkg in removable:
+            targets.append(pkg)
+            targets.append(f"{pkg}-headers")
+
+        result = run_privileged(["pacman", "-Rns", "--noconfirm", *targets])
+        if result.ok:
+            return ApplyResult(
+                success=True,
+                message=f"تمت إزالة النُوى القديمة: {', '.join(removable)}",
+                log_output=result.stdout + result.stderr,
+            )
+        return ApplyResult(
+            success=False,
+            message=f"فشلت الإزالة (كود {result.returncode}) — قد تكون بعض حزم headers غير مثبتة أصلاً، وهذا طبيعي",
+            log_output=result.stdout + result.stderr,
+        )
+
+```
+
+---
+
+### `modules/network_reset.py`
+**اللغة:** Python | **الأسطر:** 94 | **الحجم:** 3,248 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `import shutil`
+- `from core.module_base import (`
+- `from core.privilege import run_privileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/network_reset.py
+==========================
+تغليف reset-net (الأداة الموجودة فعلاً على النظام) كوحدة ضمن
+manjaro-care. هذه الوحدة لا تُعيد تنفيذ منطق reset-net — بل تستدعي
+الثنائي /usr/local/bin/reset-net أو /usr/bin/reset-net مباشرة عبر
+pkexec، تماماً كما يفعل reset-net-tray الحالي.
+
+هذا يثبت أن بنية manjaro-care تستوعب أدوات خارجية جاهزة بسهولة، لا
+فقط منطقاً مكتوباً من الصفر.
+
+ملاحظة: هذه الوحدة "خاصة" — scan() لا يفحص شيئاً في النظام، بل يتحقق
+فقط من وجود reset-net نفسه؛ لأن مشكلة الشبكة بعد فصل VPN لا يمكن
+اكتشافها موثوقاً بفحص سلبي (قد يكون الاتصال يعمل فعلاً). لذلك تُعرض
+كأداة "شغّلها عند الحاجة" لا كاقتراح تلقائي — نفس فلسفة الأيقونة في
+علبة النظام.
+"""
+
+from __future__ import annotations
+import shutil
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_privileged
+from core.logger import get_logger
+
+log = get_logger("network_reset")
+
+
+def _find_reset_net_binary() -> str | None:
+    for path in ("/usr/local/bin/reset-net", "/usr/bin/reset-net"):
+        if shutil.which(path) or __import__("os").path.isfile(path):
+            return path
+    return None
+
+
+class NetworkResetModule(MaintenanceModule):
+    name = "إعادة ضبط الشبكة"
+    slug = "network_reset"
+    description = "يصلح مشاكل الاتصال بعد فصل Outline VPN (iptables، DNS، المسارات، TUN)"
+    needs_root = True
+    risk_level = RiskLevel.SAFE
+    icon = "network-wired"
+
+    def scan(self) -> ScanResult:
+        binary = _find_reset_net_binary()
+        findings: list[ScanFinding] = []
+
+        if binary:
+            findings.append(ScanFinding(
+                title="أداة reset-net متوفرة",
+                detail=f"جاهزة للتشغيل عند الحاجة (بعد فصل VPN مثلاً): {binary}",
+                severity=Severity.OK,
+                actionable=True,   # قابلة للتشغيل اليدوي رغم أنها ليست "مشكلة"
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="أداة reset-net غير مثبتة",
+                detail="ثبّتها عبر AUR (yay -S reset-net) أو install.sh من مستودع المشروع.",
+                severity=Severity.INFO,
+                actionable=False,
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    def preview(self) -> list[PreviewStep]:
+        binary = _find_reset_net_binary() or "reset-net"
+        return [PreviewStep(
+            description="تشغيل reset-net لإعادة ضبط إعدادات الشبكة (iptables/DNS/المسارات/TUN)",
+            command=binary,
+        )]
+
+    def apply(self) -> ApplyResult:
+        binary = _find_reset_net_binary()
+        if not binary:
+            return ApplyResult(success=False, message="reset-net غير مثبت على هذا النظام")
+
+        result = run_privileged([binary])
+        if result.ok:
+            return ApplyResult(
+                success=True,
+                message="تمت إعادة ضبط الشبكة بنجاح",
+                log_output=result.stdout + result.stderr,
+            )
+        return ApplyResult(
+            success=False,
+            message=f"فشلت إعادة الضبط (كود {result.returncode}) — راجع /var/log/reset-net.log",
+            log_output=result.stdout + result.stderr,
+        )
+
+```
+
+---
+
+### `modules/mirror_rank.py`
+**اللغة:** Python | **الأسطر:** 96 | **الحجم:** 3,383 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `import os`
+- `import time`
+- `from pathlib import Path`
+- `from core.module_base import (`
+- `from core.privilege import run_privileged`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/mirror_rank.py
+========================
+إعادة ترتيب مرايا مانجارو (pacman-mirrors) حسب السرعة الفعلية، بدل
+البقاء على مرايا بطيئة أو معطّلة تُبطئ كل عملية pacman -Syu.
+
+الفحص: يتحقق من عمر ملف /etc/pacman.d/mirrorlist — إن كان قديماً
+(أكثر من 30 يوماً) يُقترح إعادة الترتيب، لأن سرعة المرايا تتغيّر
+بمرور الوقت وهذا لا يُكتشف إلا بإعادة القياس الفعلي (لا توجد طريقة
+"فحص قراءة فقط" لسرعة المرايا دون اختبارها فعلياً، لذلك المعيار هنا
+هو عمر آخر تحديث بدل فحص السرعة الحالية).
+"""
+
+from __future__ import annotations
+import os
+import time
+from pathlib import Path
+
+from core.module_base import (
+    MaintenanceModule, ScanResult, ScanFinding, Severity,
+    PreviewStep, ApplyResult, RiskLevel,
+)
+from core.privilege import run_privileged
+from core.logger import get_logger
+
+log = get_logger("mirror_rank")
+
+_MIRRORLIST_PATH = Path("/etc/pacman.d/mirrorlist")
+_STALE_DAYS = 30
+
+
+def _mirrorlist_age_days() -> float | None:
+    if not _MIRRORLIST_PATH.exists():
+        return None
+    age_seconds = time.time() - os.path.getmtime(_MIRRORLIST_PATH)
+    return age_seconds / 86400
+
+
+class MirrorRankModule(MaintenanceModule):
+    name = "ترتيب مرايا التحديث"
+    slug = "mirror_rank"
+    description = "يعيد اختبار وترتيب مرايا مانجارو حسب السرعة الفعلية لتسريع pacman -Syu"
+    needs_root = True
+    risk_level = RiskLevel.SAFE  # لا يحذف شيئاً، فقط يعيد كتابة ملف المرايا
+    icon = "network-server"
+
+    def scan(self) -> ScanResult:
+        age = _mirrorlist_age_days()
+        findings: list[ScanFinding] = []
+
+        if age is None:
+            findings.append(ScanFinding(
+                title="ملف المرايا غير موجود",
+                detail=f"{_MIRRORLIST_PATH} غير موجود — قد تحتاج تثبيت pacman-mirrors.",
+                severity=Severity.WARNING,
+                actionable=False,
+            ))
+        elif age > _STALE_DAYS:
+            findings.append(ScanFinding(
+                title=f"لم تُحدَّث المرايا منذ {age:.0f} يوماً",
+                detail="يُنصح بإعادة الترتيب — سرعة المرايا تتغيّر بمرور الوقت.",
+                severity=Severity.WARNING,
+                raw_value=age,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title=f"المرايا محدَّثة منذ {age:.0f} يوماً",
+                detail="لا حاجة ملحّة لإعادة الترتيب الآن، لكن يمكنك تشغيله يدوياً في أي وقت.",
+                severity=Severity.OK,
+                actionable=True,  # نسمح بالتشغيل اليدوي رغم عدم وجود مشكلة
+            ))
+
+        return ScanResult(module_name=self.name, findings=findings)
+
+    def preview(self) -> list[PreviewStep]:
+        return [PreviewStep(
+            description="اختبار سرعة المرايا وإعادة كتابة قائمة المرايا مرتبة تصاعدياً حسب زمن الاستجابة",
+            command="pacman-mirrors --fasttrack 5",
+        )]
+
+    def apply(self) -> ApplyResult:
+        result = run_privileged(["pacman-mirrors", "--fasttrack", "5"])
+        if result.ok:
+            return ApplyResult(
+                success=True,
+                message="تم اختبار المرايا وإعادة ترتيبها حسب السرعة",
+                log_output=result.stdout + result.stderr,
+            )
+        return ApplyResult(
+            success=False,
+            message=f"فشل إعادة الترتيب (كود {result.returncode}) — تأكد من تثبيت pacman-mirrors",
+            log_output=result.stdout + result.stderr,
+        )
+
+```
+
+---
+
+### `gui/startup_dialog.py`
+**اللغة:** Python | **الأسطر:** 93 | **الحجم:** 3,661 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from PyQt5.QtWidgets import (`
+- `from PyQt5.QtCore import Qt`
+- `from modules.startup_manager import list_entries, toggle_entry, AutostartEntry`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+gui/startup_dialog.py
+========================
+نافذة مخصصة لإدارة برامج بدء التشغيل فردياً — مكافئ تبويب "Startup"
+في Windows Task Manager/msconfig. كل صف مستقل تماماً عن البقية،
+ولذلك لا يستخدم نمط فحص/معاينة/تطبيق الجماعي المتّبع في بقية الوحدات.
+"""
+
+from __future__ import annotations
+
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
+    QPushButton, QLabel, QHeaderView, QMessageBox,
+)
+from PyQt5.QtCore import Qt
+
+from modules.startup_manager import list_entries, toggle_entry, AutostartEntry
+
+
+class StartupManagerDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("إدارة برامج بدء التشغيل")
+        self.resize(560, 420)
+        self.setLayoutDirection(Qt.RightToLeft)
+
+        self.entries: list[AutostartEntry] = []
+        self._build_ui()
+        self._reload()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+
+        info = QLabel(
+            "فعّل أو عطّل كل برنامج على حدة. التعطيل لا يحذف البرنامج، "
+            "فقط يمنعه من العمل تلقائياً عند تسجيل الدخول."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #aaaaaa;")
+        layout.addWidget(info)
+
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["البرنامج", "الوصف", "المصدر", "الحالة"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionMode(QTableWidget.NoSelection)
+        layout.addWidget(self.table)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch()
+        close_btn = QPushButton("إغلاق")
+        close_btn.clicked.connect(self.accept)
+        close_row.addWidget(close_btn)
+        layout.addLayout(close_row)
+
+    def _reload(self) -> None:
+        self.entries = list_entries()
+        self.table.setRowCount(len(self.entries))
+
+        for row, entry in enumerate(self.entries):
+            self.table.setItem(row, 0, QTableWidgetItem(entry.display_name))
+            self.table.setItem(row, 1, QTableWidgetItem(entry.comment))
+            source_text = "النظام" if entry.is_system else "المستخدم"
+            self.table.setItem(row, 2, QTableWidgetItem(source_text))
+
+            toggle_btn = QPushButton("مفعّل ✔" if entry.enabled else "معطَّل ✘")
+            toggle_btn.setCheckable(True)
+            toggle_btn.setChecked(entry.enabled)
+            toggle_btn.setStyleSheet(
+                "QPushButton { background-color: #2e7d32; } "
+                "QPushButton:!checked { background-color: #4a4a4a; color: #999; }"
+            )
+            # نلتقط basename بدل الاعتماد على row لتفادي مشاكل إن تغيّر الترتيب لاحقاً
+            toggle_btn.clicked.connect(
+                lambda checked, basename=entry.basename: self._on_toggle(basename)
+            )
+            self.table.setCellWidget(row, 3, toggle_btn)
+
+    def _on_toggle(self, basename: str) -> None:
+        entry = next((e for e in self.entries if e.basename == basename), None)
+        if entry is None:
+            return
+        try:
+            toggle_entry(entry)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "خطأ", f"تعذّر تعديل {entry.display_name}:\n{exc}")
+        self._reload()
+
+```
+
+---
+
+### `gui/__init__.py`
+**اللغة:** Python | **الأسطر:** 1 | **الحجم:** 0 حرف
+
+```python
+
+```
+
+---
+
+### `gui/custom_dialogs.py`
+**اللغة:** Python | **الأسطر:** 27 | **الحجم:** 653 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from typing import Callable`
+- `from PyQt5.QtWidgets import QDialog`
+- `from gui.startup_dialog import StartupManagerDialog`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+gui/custom_dialogs.py
+========================
+سجل مركزي يربط slug الوحدة بنافذتها المخصصة، لوحدات وضعت
+has_custom_ui = True في core/module_base.py.
+
+إضافة نافذة مخصصة لوحدة جديدة مستقبلاً تتطلب فقط تسجيلها هنا —
+module_card.py لا يحتاج أي تعديل.
+"""
+
+from __future__ import annotations
+from typing import Callable
+
+from PyQt5.QtWidgets import QDialog
+
+from gui.startup_dialog import StartupManagerDialog
+
+_REGISTRY: dict[str, Callable[..., QDialog]] = {
+    "startup_manager": StartupManagerDialog,
+}
+
+
+def get_custom_dialog(slug: str) -> Callable[..., QDialog] | None:
+    return _REGISTRY.get(slug)
+
+```
+
+---
+
+### `gui/workers.py`
+**اللغة:** Python | **الأسطر:** 54 | **الحجم:** 1,736 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from typing import Any, Callable`
+- `from PyQt5.QtCore import QThread, pyqtSignal`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+gui/workers.py
+================
+عامل خيط خلفي عام (QThread) لتنفيذ أي دالة قد تستغرق وقتاً — أهمها
+scan() و apply() في كل وحدة، وrun_full_scan() في لوحة الصحة العامة.
+
+هذا يعالج السبب الجذري لمشكلة "تجمّد الواجهة" (GUI freeze/Not
+Responding): استدعاء subprocess.run() مباشرة داخل خيط Qt الرئيسي
+يُجمّد كل النافذة حتى ينتهي الأمر — قد يكون هذا ثوانٍ معدودة (فحص
+عادي) أو عشرات الثواني (بحث find على مجلد شخصي ضخم مليء بملفات
+كبيرة)، وأثناءها لا تستجيب النافذة إطلاقاً حتى لو أراد المستخدم
+إلغاء العملية.
+
+الاستخدام:
+    worker = FunctionWorker(some_module.scan)
+    worker.finished.connect(on_result)
+    worker.failed.connect(on_error)
+    worker.start()
+
+يجب الاحتفاظ بمرجع للـ worker (self._worker = worker) طالما هو
+يعمل، وإلا قد تُجمَّع (garbage collected) قبل انتهائه.
+"""
+
+from __future__ import annotations
+from typing import Any, Callable
+
+from PyQt5.QtCore import QThread, pyqtSignal
+
+from core.logger import get_logger
+
+log = get_logger("workers")
+
+
+class FunctionWorker(QThread):
+    """يُنفّذ دالة واحدة بلا معطيات في خيط خلفي، ويبعث النتيجة أو الخطأ."""
+
+    finished_ok = pyqtSignal(object)   # النتيجة الناجحة
+    failed = pyqtSignal(str)           # نص الاستثناء عند الفشل
+
+    def __init__(self, func: Callable[[], Any], parent=None):
+        super().__init__(parent)
+        self._func = func
+
+    def run(self) -> None:  # يُنفَّذ في الخيط الخلفي — لا تلمس عناصر Qt هنا
+        try:
+            result = self._func()
+        except Exception as exc:  # noqa: BLE001 — نريد عرض أي خطأ للمستخدم بدل انهيار صامت
+            log.exception("فشل تنفيذ عملية في الخيط الخلفي")
+            self.failed.emit(str(exc))
+            return
+        self.finished_ok.emit(result)
+
+```
+
+---
+
+### `gui/main_window.py`
+**اللغة:** Python | **الأسطر:** 155 | **الحجم:** 5,679 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from PyQt5.QtWidgets import (`
+- `from PyQt5.QtCore import Qt`
+- `from PyQt5.QtGui import QFont`
+- `from core.scanner import run_full_scan, SystemHealthReport`
+- `from core.logger import get_logger, log_file_path`
+- `from modules.registry import get_all_modules`
+- `from gui.module_card import ModuleCard`
+- `from gui.workers import FunctionWorker`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+gui/main_window.py
+===================
+النافذة الرئيسية: شريط علوي بملخص صحة النظام (تحاكي الشاشة الأولى في
+Advanced SystemCare)، وتحته قائمة قابلة للتمرير من بطاقات الوحدات
+المسجّلة في modules/registry.py.
+"""
+
+from __future__ import annotations
+
+from PyQt5.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QFrame,
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+
+from core.scanner import run_full_scan, SystemHealthReport
+from core.logger import get_logger, log_file_path
+from modules.registry import get_all_modules
+from gui.module_card import ModuleCard
+from gui.workers import FunctionWorker
+
+log = get_logger("main_window")
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Manjaro Care — مركز صيانة النظام")
+        self.resize(760, 640)
+        self.setLayoutDirection(Qt.RightToLeft)
+
+        self.modules = get_all_modules()
+        self.cards: list[ModuleCard] = []
+        # يجب الاحتفاظ بمرجع للـ worker قيد التشغيل، وإلا قد يُجمَّع
+        # (garbage collected) قبل انتهائه
+        self._scan_all_worker: FunctionWorker | None = None
+
+        self._build_ui()
+
+    # ------------------------------------------------------------
+    def _build_ui(self) -> None:
+        central = QWidget()
+        self.setCentralWidget(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(20, 20, 20, 20)
+        outer.setSpacing(16)
+
+        # ---- لوحة الصحة العامة ----
+        health_frame = QFrame()
+        health_frame.setStyleSheet(
+            "QFrame { background-color: #1e1e1e; border-radius: 12px; }"
+        )
+        health_layout = QVBoxLayout(health_frame)
+        health_layout.setContentsMargins(20, 16, 20, 16)
+
+        title = QLabel("مركز صيانة Manjaro")
+        title_font = QFont()
+        title_font.setPointSize(16)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        health_layout.addWidget(title)
+
+        self.summary_label = QLabel("اضغط \"فحص شامل\" لبدء تقييم حالة النظام.")
+        self.summary_label.setStyleSheet("color: #bbbbbb;")
+        self.summary_label.setWordWrap(True)
+        health_layout.addWidget(self.summary_label)
+
+        scan_all_row = QHBoxLayout()
+        self.scan_all_btn = QPushButton("فحص شامل للنظام")
+        self.scan_all_btn.setStyleSheet(
+            "QPushButton { background-color: #2e7d32; padding: 8px 16px; font-weight: bold; }"
+        )
+        self.scan_all_btn.clicked.connect(self._on_scan_all)
+        scan_all_row.addWidget(self.scan_all_btn)
+        scan_all_row.addStretch()
+
+        log_btn = QPushButton("فتح ملف اللوغ")
+        log_btn.clicked.connect(self._open_log_location)
+        scan_all_row.addWidget(log_btn)
+
+        health_layout.addLayout(scan_all_row)
+        outer.addWidget(health_frame)
+
+        # ---- قائمة الوحدات القابلة للتمرير ----
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; }")
+
+        modules_container = QWidget()
+        modules_layout = QVBoxLayout(modules_container)
+        modules_layout.setSpacing(12)
+
+        for module in self.modules:
+            card = ModuleCard(module)
+            self.cards.append(card)
+            modules_layout.addWidget(card)
+
+        modules_layout.addStretch()
+        scroll.setWidget(modules_container)
+        outer.addWidget(scroll, stretch=1)
+
+    # ------------------------------------------------------------
+    def _on_scan_all(self) -> None:
+        self.scan_all_btn.setEnabled(False)
+        self.scan_all_btn.setText("جارٍ الفحص...")
+
+        self._scan_all_worker = FunctionWorker(lambda: run_full_scan(self.modules))
+        self._scan_all_worker.finished_ok.connect(self._on_scan_all_finished)
+        self._scan_all_worker.failed.connect(self._on_scan_all_failed)
+        self._scan_all_worker.start()
+
+    def _on_scan_all_finished(self, report: SystemHealthReport) -> None:
+        self._render_summary(report)
+
+        # حدّث كل بطاقة بنتيجتها الخاصة دون طلب فحص جديد منها (نتفادى
+        # تشغيل نفس الفحص مرتين)
+        for card, result in zip(self.cards, report.results):
+            card._last_scan = result
+            card._render_scan_result(result)
+            has_actionable = any(f.actionable for f in result.findings)
+            card.preview_btn.setEnabled(has_actionable)
+
+        self.scan_all_btn.setEnabled(True)
+        self.scan_all_btn.setText("فحص شامل للنظام")
+
+    def _on_scan_all_failed(self, error_text: str) -> None:
+        from PyQt5.QtWidgets import QMessageBox
+        self.scan_all_btn.setEnabled(True)
+        self.scan_all_btn.setText("فحص شامل للنظام")
+        QMessageBox.critical(self, "خطأ في الفحص الشامل", error_text)
+
+    def _render_summary(self, report: SystemHealthReport) -> None:
+        if report.critical_count:
+            text = f"⚠ تم رصد {report.critical_count} مشكلة حرجة و{report.warning_count} تنبيهاً — راجع البطاقات أدناه."
+            color = "#ef5350"
+        elif report.warning_count:
+            text = f"يوجد {report.warning_count} تنبيهاً يستحق المراجعة."
+            color = "#ffa726"
+        else:
+            text = "النظام في حالة جيدة — لا مشاكل حرجة أو تنبيهات."
+            color = "#66bb6a"
+
+        self.summary_label.setText(text)
+        self.summary_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+
+    def _open_log_location(self) -> None:
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.information(
+            self, "موقع ملف اللوغ", f"سجل التطبيق محفوظ في:\n{log_file_path()}"
+        )
+
+```
+
+---
+
+### `gui/module_card.py`
+**اللغة:** Python | **الأسطر:** 260 | **الحجم:** 9,786 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from PyQt5.QtWidgets import (`
+- `from PyQt5.QtCore import Qt, pyqtSignal`
+- `from PyQt5.QtGui import QFont`
+- `from core.module_base import MaintenanceModule, Severity, ScanResult`
+- `from gui.workers import FunctionWorker`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+gui/module_card.py
+===================
+بطاقة واجهة موحّدة لكل وحدة صيانة. تلتزم بنمط "فحص → معاينة → تطبيق"
+المفروض من core/module_base.py، بحيث لا يمكن لأي وحدة تجاوز خطوة
+المعاينة والذهاب مباشرة للتطبيق دون أن يرى المستخدم ماذا سيحدث بالضبط.
+
+كل عمليات scan()/apply() تُنفَّذ عبر gui/workers.py في خيط خلفي —
+هذا يمنع تجمّد الواجهة (GUI freeze) أثناء فحص بطيء (مثل disk_analyzer
+على مجلد شخصي ضخم) أو أثناء انتظار مصادقة polkit.
+
+الألوان تعكس severity/risk_level بنفس منطق البطاقات في أدوات مثل
+Wise Care 365 — أخضر=سليم، أصفر=تنبيه، أحمر=حرج.
+"""
+
+from __future__ import annotations
+
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QFrame, QMessageBox, QTextEdit, QSizePolicy,
+)
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont
+
+from core.module_base import MaintenanceModule, Severity, ScanResult
+from gui.workers import FunctionWorker
+
+_SEVERITY_COLORS = {
+    Severity.OK: "#2e7d32",        # أخضر
+    Severity.INFO: "#1565c0",      # أزرق
+    Severity.WARNING: "#e65100",   # برتقالي
+    Severity.CRITICAL: "#c62828",  # أحمر
+}
+
+_RISK_LABELS = {
+    "safe": "آمن",
+    "moderate": "متوسط الحساسية",
+    "destructive": "حساس — لا يمكن التراجع بسهولة",
+}
+
+
+class ModuleCard(QFrame):
+    """بطاقة واحدة تمثّل وحدة صيانة واحدة ضمن القائمة الرئيسية."""
+
+    apply_requested = pyqtSignal(object)  # يُبعث عند نجاح تطبيق فعلي، يحمل الوحدة
+
+    def __init__(self, module: MaintenanceModule, parent=None):
+        super().__init__(parent)
+        self.module = module
+        self._last_scan: ScanResult | None = None
+        # يجب الاحتفاظ بمرجع لكل worker قيد التشغيل، وإلا قد يُجمَّع
+        # (garbage collected) قبل انتهائه فينهار التطبيق بصمت
+        self._scan_worker: FunctionWorker | None = None
+        self._apply_worker: FunctionWorker | None = None
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setObjectName("moduleCard")
+        self.setStyleSheet("""
+            QFrame#moduleCard {
+                background-color: #2b2b2b;
+                border: 1px solid #3d3d3d;
+                border-radius: 10px;
+            }
+        """)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(8)
+
+        # ---- رأس البطاقة: الاسم + مستوى الحساسية ----
+        header = QHBoxLayout()
+        title = QLabel(self.module.name)
+        title_font = QFont()
+        title_font.setPointSize(12)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        title.setLayoutDirection(Qt.RightToLeft)
+        header.addWidget(title)
+
+        header.addStretch()
+
+        risk_label = QLabel(_RISK_LABELS.get(self.module.risk_level.value, ""))
+        risk_label.setStyleSheet("color: #999; font-size: 10pt;")
+        header.addWidget(risk_label)
+        root.addLayout(header)
+
+        # ---- الوصف ----
+        desc = QLabel(self.module.description)
+        desc.setWordWrap(True)
+        desc.setLayoutDirection(Qt.RightToLeft)
+        desc.setStyleSheet("color: #cfcfcf;")
+        root.addWidget(desc)
+
+        # ---- منطقة نتائج الفحص (تُملأ بعد الضغط على "فحص") ----
+        self.result_label = QLabel("لم يتم الفحص بعد.")
+        self.result_label.setWordWrap(True)
+        self.result_label.setLayoutDirection(Qt.RightToLeft)
+        self.result_label.setStyleSheet("color: #aaaaaa; padding-top: 4px;")
+        root.addWidget(self.result_label)
+
+        # ---- منطقة معاينة تفصيلية (مخفية حتى الحاجة) ----
+        self.preview_box = QTextEdit()
+        self.preview_box.setReadOnly(True)
+        self.preview_box.setFixedHeight(90)
+        self.preview_box.setStyleSheet(
+            "background-color: #1e1e1e; color: #9fdc9f; font-family: monospace; font-size: 9pt;"
+        )
+        self.preview_box.hide()
+        root.addWidget(self.preview_box)
+
+        # ---- الأزرار ----
+        btn_row = QHBoxLayout()
+
+        self.scan_btn = QPushButton("فحص")
+        self.scan_btn.clicked.connect(self._on_scan_clicked)
+        btn_row.addWidget(self.scan_btn)
+
+        self.preview_btn = QPushButton("معاينة")
+        self.preview_btn.clicked.connect(self._on_preview_clicked)
+        self.preview_btn.setEnabled(False)
+        btn_row.addWidget(self.preview_btn)
+
+        self.apply_btn = QPushButton("تطبيق")
+        self.apply_btn.clicked.connect(self._on_apply_clicked)
+        self.apply_btn.setEnabled(False)
+        self.apply_btn.setStyleSheet(
+            "QPushButton { background-color: #37474f; } "
+            "QPushButton:disabled { background-color: #2a2a2a; color: #666; }"
+        )
+        btn_row.addWidget(self.apply_btn)
+
+        if self.module.has_custom_ui:
+            self.manage_btn = QPushButton("إدارة فردية")
+            self.manage_btn.setStyleSheet("background-color: #1565c0;")
+            self.manage_btn.clicked.connect(self._on_manage_clicked)
+            btn_row.addWidget(self.manage_btn)
+
+        root.addLayout(btn_row)
+
+    # ---------------------------------------------------------------
+    # الفحص — يعمل في خيط خلفي حتى لا يُجمِّد الواجهة
+    # ---------------------------------------------------------------
+    def _on_scan_clicked(self) -> None:
+        self.scan_btn.setEnabled(False)
+        self.scan_btn.setText("جارٍ الفحص...")
+
+        self._scan_worker = FunctionWorker(self.module.scan)
+        self._scan_worker.finished_ok.connect(self._on_scan_finished)
+        self._scan_worker.failed.connect(self._on_scan_failed)
+        self._scan_worker.start()
+
+    def _on_scan_finished(self, result: ScanResult) -> None:
+        self.scan_btn.setEnabled(True)
+        self.scan_btn.setText("فحص")
+
+        self._last_scan = result
+        self._render_scan_result(result)
+        has_actionable = any(f.actionable for f in result.findings)
+        self.preview_btn.setEnabled(has_actionable)
+
+    def _on_scan_failed(self, error_text: str) -> None:
+        self.scan_btn.setEnabled(True)
+        self.scan_btn.setText("فحص")
+        QMessageBox.critical(self, "خطأ في الفحص", error_text)
+
+    def _render_scan_result(self, result: ScanResult) -> None:
+        if result.error:
+            self.result_label.setText(f"⚠ فشل الفحص: {result.error}")
+            self.result_label.setStyleSheet(f"color: {_SEVERITY_COLORS[Severity.CRITICAL]};")
+            return
+
+        lines = [f"● {finding.title}" for finding in result.findings]
+        text = "\n".join(lines) if lines else "لا نتائج."
+        self.result_label.setText(text)
+        self.result_label.setStyleSheet(
+            f"color: {_SEVERITY_COLORS.get(result.worst_severity, '#cfcfcf')}; padding-top: 4px;"
+        )
+
+    # ---------------------------------------------------------------
+    # المعاينة — سريعة عادة (لا تنفّذ أوامر)، تبقى في الخيط الرئيسي
+    # ---------------------------------------------------------------
+    def _on_preview_clicked(self) -> None:
+        try:
+            steps = self.module.preview()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "خطأ في المعاينة", str(exc))
+            return
+
+        if not steps:
+            self.preview_box.setPlainText("لا توجد خطوات لتنفيذها حالياً.")
+        else:
+            lines = []
+            for step in steps:
+                lines.append(f"• {step.description}")
+                if step.command:
+                    lines.append(f"    $ {step.command}")
+            self.preview_box.setPlainText("\n".join(lines))
+
+        self.preview_box.show()
+        self.apply_btn.setEnabled(True)
+
+    # ---------------------------------------------------------------
+    # التطبيق — في خيط خلفي أيضاً (قد ينتظر مصادقة polkit لثوانٍ)
+    # ---------------------------------------------------------------
+    def _on_apply_clicked(self) -> None:
+        confirm = QMessageBox.question(
+            self,
+            "تأكيد التنفيذ",
+            f'سيتم الآن تنفيذ التغييرات الظاهرة في المعاينة لوحدة "{self.module.name}".\n'
+            "هل أنت متأكد؟",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        self.apply_btn.setEnabled(False)
+        self.apply_btn.setText("جارٍ التنفيذ...")
+
+        self._apply_worker = FunctionWorker(self.module.apply)
+        self._apply_worker.finished_ok.connect(self._on_apply_finished)
+        self._apply_worker.failed.connect(self._on_apply_failed)
+        self._apply_worker.start()
+
+    def _on_apply_finished(self, result) -> None:
+        self.apply_btn.setText("تطبيق")
+
+        if result.success:
+            QMessageBox.information(self, "تم", result.message)
+            self._on_scan_clicked()  # إعادة فحص لتحديث الحالة بعد التنفيذ
+        else:
+            QMessageBox.warning(self, "فشل جزئي أو كلي", result.message)
+            self.apply_btn.setEnabled(True)
+
+        self.apply_requested.emit(self.module)
+
+    def _on_apply_failed(self, error_text: str) -> None:
+        self.apply_btn.setText("تطبيق")
+        self.apply_btn.setEnabled(True)
+        QMessageBox.critical(self, "خطأ في التنفيذ", error_text)
+
+    # ---------------------------------------------------------------
+    # الوحدات ذات الواجهة المخصصة (مثل startup_manager)
+    # ---------------------------------------------------------------
+    def _on_manage_clicked(self) -> None:
+        from gui.custom_dialogs import get_custom_dialog
+
+        dialog_cls = get_custom_dialog(self.module.slug)
+        if dialog_cls is None:
+            QMessageBox.information(self, "غير متوفر", "لا توجد نافذة إدارة مخصصة لهذه الوحدة بعد.")
+            return
+
+        dialog = dialog_cls(parent=self)
+        dialog.exec_()
+        self._on_scan_clicked()  # تحديث ملخص البطاقة بعد إغلاق النافذة
+
+```
+
+---
+
+### `core/__init__.py`
+**اللغة:** Python | **الأسطر:** 1 | **الحجم:** 0 حرف
+
+```python
+
+```
+
+---
+
+### `core/scanner.py`
+**اللغة:** Python | **الأسطر:** 68 | **الحجم:** 2,075 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from dataclasses import dataclass`
+- `from core.module_base import MaintenanceModule, ScanResult, Severity`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+core/scanner.py
+===============
+يكتشف كل الوحدات المسجّلة في modules/ تلقائياً (عبر REGISTRY)، ويشغّل
+scan() الخاص بكل واحدة، ثم يرتّب النتائج حسب الخطورة لعرضها في قسم
+"الاقتراحات الذكية" بالواجهة الرئيسية — هذا يحاكي وظيفة Advanced
+SystemCare في إعطاء "لمحة صحة سريعة" عند فتح التطبيق.
+
+إضافة وحدة جديدة لاحقاً لا تتطلب تعديل هذا الملف إطلاقاً — فقط سجّلها
+في modules/registry.py.
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass
+
+from core.module_base import MaintenanceModule, ScanResult, Severity
+from core.logger import get_logger
+
+log = get_logger("scanner")
+
+
+@dataclass
+class SystemHealthReport:
+    results: list[ScanResult]
+
+    @property
+    def total_findings(self) -> int:
+        return sum(len(r.findings) for r in self.results)
+
+    @property
+    def critical_count(self) -> int:
+        return sum(
+            1 for r in self.results for f in r.findings
+            if f.severity == Severity.CRITICAL
+        )
+
+    @property
+    def warning_count(self) -> int:
+        return sum(
+            1 for r in self.results for f in r.findings
+            if f.severity == Severity.WARNING
+        )
+
+    def sorted_by_severity(self) -> list[ScanResult]:
+        order = {
+            Severity.CRITICAL: 0,
+            Severity.WARNING: 1,
+            Severity.INFO: 2,
+            Severity.OK: 3,
+        }
+        return sorted(self.results, key=lambda r: order[r.worst_severity])
+
+
+def run_full_scan(modules: list[MaintenanceModule]) -> SystemHealthReport:
+    """يشغّل scan() لكل وحدة، ويتحمّل فشل وحدة واحدة دون إيقاف الباقي."""
+    results: list[ScanResult] = []
+    for module in modules:
+        try:
+            log.info("فحص الوحدة: %s", module.slug)
+            result = module.scan()
+        except Exception as exc:  # noqa: BLE001 — نريد عزل أي عطل بوحدة واحدة
+            log.exception("فشل فحص الوحدة %s", module.slug)
+            result = ScanResult(module_name=module.name, error=str(exc))
+        results.append(result)
+    return SystemHealthReport(results=results)
+
+```
+
+---
+
+### `core/module_base.py`
+**اللغة:** Python | **الأسطر:** 112 | **الحجم:** 3,861 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `from abc import ABC, abstractmethod`
+- `from dataclasses import dataclass, field`
+- `from enum import Enum`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+core/module_base.py
+====================
+الكلاس الأساسي (Abstract Base Class) الذي يجب أن ترثه كل وحدة صيانة.
+
+الفلسفة: كل وحدة يجب أن تفصل بوضوح بين:
+  1) scan()    — فحص القراءة فقط، لا يغيّر شيئاً في النظام إطلاقاً.
+  2) preview() — يشرح بالتفصيل ماذا سيحدث *قبل* أي تنفيذ (بالأوامر الفعلية
+                 إن أمكن)، حتى يستطيع المستخدم اتخاذ قرار واعٍ.
+  3) apply()   — التنفيذ الفعلي، ويُستدعى فقط بعد موافقة المستخدم الصريحة.
+
+هذا يمنع نمط "زر نظّف الآن" الغامض الذي تنتقده أدوات مثل Advanced
+SystemCare، ويحافظ على شفافية reset-net نفسها (لوغ + تفسير واضح).
+"""
+
+from __future__ import annotations
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import Enum
+
+
+class RiskLevel(str, Enum):
+    SAFE = "safe"               # لا خطر، قابل للتراجع أو بلا أثر يُذكر
+    MODERATE = "moderate"       # يغيّر حالة النظام لكن قابل للتصحيح
+    DESTRUCTIVE = "destructive"  # لا يمكن التراجع عنه بسهولة (حذف نهائي مثلاً)
+
+
+class Severity(str, Enum):
+    OK = "ok"           # كل شيء طبيعي
+    INFO = "info"        # ملاحظة بسيطة، لا تستدعي القلق
+    WARNING = "warning"  # يستحق الانتباه
+    CRITICAL = "critical"  # يستحق التصرف السريع
+
+
+@dataclass
+class ScanFinding:
+    """نتيجة فحص واحدة قابلة للعرض كبطاقة في الواجهة."""
+    title: str                     # عنوان مختصر بالعربية
+    detail: str                    # شرح تفصيلي
+    severity: Severity = Severity.INFO
+    actionable: bool = True        # هل يوجد إجراء يمكن تطبيقه لحل هذا الشيء؟
+    raw_value: object = None       # القيمة الخام (عدد الحزم، حجم بالبايت...) لأغراض الفرز/الاختبار
+
+
+@dataclass
+class ScanResult:
+    """نتيجة scan() الكاملة لوحدة واحدة."""
+    module_name: str
+    findings: list[ScanFinding] = field(default_factory=list)
+    error: str | None = None       # إن فشل الفحص نفسه (صلاحيات، أداة غير مثبتة...)
+
+    @property
+    def worst_severity(self) -> Severity:
+        order = [Severity.CRITICAL, Severity.WARNING, Severity.INFO, Severity.OK]
+        present = {f.severity for f in self.findings}
+        for level in order:
+            if level in present:
+                return level
+        return Severity.OK
+
+
+@dataclass
+class PreviewStep:
+    """خطوة واحدة ستُنفَّذ، مع الأمر الفعلي إن وُجد (للشفافية الكاملة)."""
+    description: str
+    command: str | None = None     # الأمر الحرفي الذي سيُنفَّذ، إن كان قابلاً للعرض
+
+
+@dataclass
+class ApplyResult:
+    success: bool
+    message: str
+    log_output: str = ""
+
+
+class MaintenanceModule(ABC):
+    """كل وحدة صيانة (تنظيف حزم، journal، mirrors...) ترث من هذا الكلاس."""
+
+    # ---- بيانات وصفية يجب على كل وحدة تعريفها ----
+    name: str = "وحدة بلا اسم"
+    slug: str = "unnamed"          # معرّف فريد بالإنجليزية (لأسماء الملفات/اللوغ)
+    description: str = ""
+    needs_root: bool = False
+    risk_level: RiskLevel = RiskLevel.SAFE
+    icon: str = "applications-system"  # اسم أيقونة من ثيمات freedesktop
+
+    # إن كانت True، تعرض بطاقة الوحدة زر "إدارة فردية" إضافياً يفتح نافذة
+    # مخصصة (مسجَّلة في gui/custom_dialogs.py) بدل الاعتماد فقط على
+    # نمط فحص/معاينة/تطبيق الجماعي — مناسب لحالات مثل قائمة عناصر كل
+    # واحد منها قرار مستقل (برامج بدء التشغيل مثلاً).
+    has_custom_ui: bool = False
+
+    @abstractmethod
+    def scan(self) -> ScanResult:
+        """فحص للقراءة فقط. يجب ألا يُغيّر أي حالة في النظام."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def preview(self) -> list[PreviewStep]:
+        """يُرجع قائمة الخطوات التي سيُنفّذها apply(), مع الأوامر الفعلية إن أمكن."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply(self) -> ApplyResult:
+        """التنفيذ الفعلي. يجب استدعاؤه فقط بعد موافقة المستخدم على preview()."""
+        raise NotImplementedError
+
+    def __repr__(self) -> str:
+        return f"<MaintenanceModule slug={self.slug!r} risk={self.risk_level}>"
+
+```
+
+---
+
+### `core/logger.py`
+**اللغة:** Python | **الأسطر:** 55 | **الحجم:** 1,454 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `import logging`
+- `import os`
+- `from pathlib import Path`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+core/logger.py
+==============
+لوغ مركزي لكل التطبيق والوحدات. الملف الافتراضي:
+  ~/.local/share/manjaro-care/manjaro-care.log   (وضع مستخدم عادي)
+مع محاولة الكتابة أيضاً إلى /var/log/manjaro-care.log إن توفرت الصلاحية
+(يُترك فارغاً بصمت إن لم تتوفر، لأن هذا الملف اختياري وليس ضرورياً للعمل).
+"""
+
+from __future__ import annotations
+import logging
+import os
+from pathlib import Path
+
+_LOG_DIR = Path.home() / ".local" / "share" / "manjaro-care"
+_LOG_FILE = _LOG_DIR / "manjaro-care.log"
+
+_configured = False
+
+
+def _configure_root() -> None:
+    global _configured
+    if _configured:
+        return
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    formatter = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    file_handler = logging.FileHandler(_LOG_FILE, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    root = logging.getLogger("manjaro_care")
+    root.setLevel(logging.DEBUG if os.environ.get("MC_DEBUG") else logging.INFO)
+    root.addHandler(file_handler)
+    root.addHandler(console_handler)
+
+    _configured = True
+
+
+def get_logger(component: str) -> logging.Logger:
+    _configure_root()
+    return logging.getLogger(f"manjaro_care.{component}")
+
+
+def log_file_path() -> Path:
+    return _LOG_FILE
+
+```
+
+---
+
+### `core/privilege.py`
+**اللغة:** Python | **الأسطر:** 83 | **الحجم:** 2,654 حرف
+**الاعتماديات:**
+- `from __future__ import annotations`
+- `import shutil`
+- `import subprocess`
+- `from dataclasses import dataclass`
+- `from core.logger import get_logger`
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+core/privilege.py
+==================
+طبقة موحّدة لتنفيذ الأوامر التي تحتاج صلاحيات جذر، عبر polkit (pkexec)
+حصراً — بنفس فلسفة reset-net الأصلية: لا نعدّل /etc/sudoers.d تلقائياً،
+polkit يعطي مصادقة رسومية واحدة والمستخدم يبقى مطّلعاً على كل استدعاء.
+
+كل وحدة تستدعي run_privileged() بدل استدعاء subprocess مباشرة، حتى:
+  - يكون هناك سجل مركزي لكل أمر نُفّذ بصلاحيات مرتفعة
+  - يسهل لاحقاً استبدال pkexec بآلية أخرى (polkit action مخصص) دون
+    تعديل كل وحدة على حدة
+"""
+
+from __future__ import annotations
+import shutil
+import subprocess
+from dataclasses import dataclass
+
+from core.logger import get_logger
+
+log = get_logger("privilege")
+
+
+@dataclass
+class CommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+
+    @property
+    def ok(self) -> bool:
+        return self.returncode == 0
+
+
+def _pkexec_available() -> bool:
+    return shutil.which("pkexec") is not None
+
+
+def run_unprivileged(args: list[str], timeout: int = 30) -> CommandResult:
+    """تنفيذ أمر عادي بلا صلاحيات مرتفعة (فحوصات القراءة مثلاً)."""
+    log.debug("تنفيذ أمر عادي: %s", " ".join(args))
+    try:
+        proc = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout
+        )
+        return CommandResult(proc.returncode, proc.stdout, proc.stderr)
+    except FileNotFoundError as e:
+        log.error("الأمر غير موجود: %s", args[0])
+        return CommandResult(127, "", str(e))
+    except subprocess.TimeoutExpired:
+        log.error("انتهت مهلة الأمر: %s", " ".join(args))
+        return CommandResult(124, "", "timeout")
+
+
+def run_privileged(args: list[str], timeout: int = 120) -> CommandResult:
+    """
+    تنفيذ أمر بصلاحيات جذر عبر pkexec. يفتح نافذة مصادقة polkit
+    الرسومية (نفس ما اعتاده المستخدم من تطبيقات KDE الأخرى).
+    """
+    if not _pkexec_available():
+        msg = "الأداة pkexec غير مثبتة — مطلوبة لتنفيذ أي إجراء بصلاحيات جذر."
+        log.error(msg)
+        return CommandResult(127, "", msg)
+
+    full_cmd = ["pkexec", *args]
+    log.info("تنفيذ أمر مرتفع الصلاحية: %s", " ".join(args))
+    try:
+        proc = subprocess.run(
+            full_cmd, capture_output=True, text=True, timeout=timeout
+        )
+        if proc.returncode == 0:
+            log.info("نجح: %s", " ".join(args))
+        else:
+            log.warning(
+                "فشل (%s): %s — %s", proc.returncode, " ".join(args), proc.stderr.strip()
+            )
+        return CommandResult(proc.returncode, proc.stdout, proc.stderr)
+    except subprocess.TimeoutExpired:
+        log.error("انتهت مهلة الأمر المرتفع: %s", " ".join(args))
+        return CommandResult(124, "", "timeout")
+
+```
+
+---
