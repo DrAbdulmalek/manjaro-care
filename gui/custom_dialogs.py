@@ -16,9 +16,11 @@ from typing import Callable
 from PyQt5.QtWidgets import QDialog
 
 from gui.startup_dialog import StartupManagerDialog
+from gui.boot_sanity_dialog import BootSanityDialog
 
 _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "startup_manager": StartupManagerDialog,
+    "boot_sanity": BootSanityDialog,
 }
 
 

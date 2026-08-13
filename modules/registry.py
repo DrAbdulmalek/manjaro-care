@@ -24,6 +24,7 @@ from modules.mirror_rank import MirrorRankModule
 from modules.kernel_cleanup import KernelCleanupModule
 from modules.disk_analyzer import DiskAnalyzerModule
 from modules.startup_manager import StartupManagerModule
+from modules.boot_sanity import BootSanityModule
 
 
 def get_all_modules() -> list[MaintenanceModule]:
@@ -32,6 +33,9 @@ def get_all_modules() -> list[MaintenanceModule]:
     الترتيب: الأكثر أماناً/فائدة يومية أولاً، الأكثر حساسية (kernel_cleanup)
     قرب النهاية، والوحدات الإخبارية البحتة (disk_analyzer, startup_manager)
     في الآخر لأنها لا تتطلب قراراً فورياً.
+
+    boot_sanity تُوضع بعد kernel_cleanup لأنها مرتبطة بالإقلاع أيضاً
+    لكنها فحصيّة بطبيعتها (لا تنظّف شيئاً بل تكتشف المشاكل).
     """
     return [
         NetworkResetModule(),
@@ -40,6 +44,7 @@ def get_all_modules() -> list[MaintenanceModule]:
         JournalVacuumModule(),
         MirrorRankModule(),
         KernelCleanupModule(),
+        BootSanityModule(),
         DiskAnalyzerModule(),
         StartupManagerModule(),
     ]
