@@ -139,6 +139,13 @@ class ModuleCard(QFrame):
             self.manage_btn.clicked.connect(self._on_manage_clicked)
             btn_row.addWidget(self.manage_btn)
 
+        if self.module.doc_url:
+            import webbrowser
+            doc_btn = QPushButton("اقرأ التوثيق")
+            doc_btn.setStyleSheet("background-color: #6a1b9a;")
+            doc_btn.clicked.connect(lambda: webbrowser.open(self.module.doc_url))
+            btn_row.addWidget(doc_btn)
+
         root.addLayout(btn_row)
 
     # ---------------------------------------------------------------

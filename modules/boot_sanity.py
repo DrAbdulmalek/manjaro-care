@@ -3,26 +3,24 @@
 """
 modules/boot_sanity.py
 ======================
-وحدة فحص سلامة الإقلاع — تدمج منطق manjaro-doctor داخل واجهة manjaro-care.
+وحدة فحص سلامة الإقلاع — تكامل اختياري بين manjaro-care و manjaro-doctor.
 
-تكشف ثلاث حالات تسبب فشل الإقلاع بعد تحديث Manjaro على btrfs:
-  1) النظام يعمل فعلياً من داخل لقطة timeshift بدل subvolume @ الحقيقي.
-  2) الإدخال الرئيسي في grub.cfg يشير لمسار لقطة قديمة.
-  3) الحل الوقائي الدائم (rootflags=subvol=@) غير مُفعّل بعد.
+آلية العمل:
+  1) إن وُجد السكربت الخارجي boot-sanity-check.sh (من manjaro-doctor)،
+     يستدعيه مع --json ويُحلّل الناتج — هذا يضمن عدم تكرار المنطق
+     والمزامنة التلقائية مع أي تحديث للسكربت.
+  2) إن لم يكن السكربت مُثبّتاً، يستخدم منطق Python أصلي كـ fallback —
+     هذا يضمن أن manjaro-care يعمل مستقلاً بدون تبعية إجبارية.
 
-المرجع التوثيقي الكامل: https://github.com/DrAbdulmalek/manjaro-doctor
+المرجع التوثيقي: https://github.com/DrAbdulmalek/manjaro-doctor
+ملف المشكلة:     issues/grub-btrfs-snapshot-boot.md
 
-ترث من MaintenanceModule وتحترم نمط فحص → معاينة → تطبيق:
-  - scan(): يقرأ حالة النظام فقط (findmnt, grub.cfg, /etc/default/grub)
-  - preview(): يعرض ماذا سيحدث إن نُفّذ الإصلاح
-  - apply(): يُنفّذ grub-mkconfig فقط (الإصلاح الآمن من داخل @ الحقيقي)
-
-للتشخيص التفصيلي الكامل (خارج نطاق scan/preview/apply)، توفر
-has_custom_ui = True نافذة مخصصة (BootSanityDialog) تعرض التشخيص
-الكامل خطوة بخطوة مع الاقتراحات — كما هو موثّق في manjaro-doctor.
+ترث من MaintenanceModule وتحترم نمط فحص → معاينة → تطبيق.
+has_custom_ui = True لتوفير نافذة تشخيص تفصيلية.
 """
 
 from __future__ import annotations
+import json
 import os
 import re
 import shutil
@@ -36,34 +34,65 @@ from core.logger import get_logger
 
 log = get_logger("boot_sanity")
 
+# مسار السكربت الخارجي (من manjaro-doctor)
+SCRIPT_PATH = "/usr/local/bin/boot-sanity-check.sh"
+
+# رابط التوثيق الكامل على GitHub
+DOC_URL = "https://github.com/DrAbdulmalek/manjaro-doctor/blob/main/issues/grub-btrfs-snapshot-boot.md"
+
 
 # ---------------------------------------------------------------------------
-# دوال مساعدة للفحص
+# الطريقة 1: استدعاء السكربت الخارجي مع --json (الأفضل — لا تكرار منطق)
+# ---------------------------------------------------------------------------
+
+def _script_exists() -> bool:
+    return shutil.which(SCRIPT_PATH) is not None
+
+
+def _run_script_json(fix: bool = False) -> tuple[dict | None, str | None]:
+    """يستدعي boot-sanity-check.sh --json وُيرجع البيانات المحلّلة."""
+    args = [SCRIPT_PATH, "--json"]
+    if fix:
+        args.append("--fix")
+
+    result = run_privileged(args, timeout=60)
+    if not result.ok:
+        return None, result.stderr.strip() or f"فشل السكربت (كود {result.returncode})"
+
+    try:
+        data = json.loads(result.stdout)
+        return data, None
+    except json.JSONDecodeError:
+        return None, f"نتيجة غير متوقعة من السكربت:\n{result.stdout[:200]}"
+
+
+# ---------------------------------------------------------------------------
+# الطريقة 2: منطق Python أصلي (fallback — إن لم يكن السكربت مُثبّتاً)
 # ---------------------------------------------------------------------------
 
 def _get_root_source() -> str:
-    """يُرجع مصدر الجذر المُركَّب فعلياً (مثل /dev/sda6[/@] أو مسار لقطة)."""
     result = run_unprivileged(["findmnt", "-no", "SOURCE", "/"])
     return result.stdout.strip() if result.ok else ""
 
 
+def _is_btrfs_system() -> bool:
+    result = run_unprivileged(["findmnt", "-no", "FSTYPE", "/"])
+    return result.ok and result.stdout.strip() == "btrfs"
+
+
 def _is_booted_from_snapshot(root_source: str) -> bool:
-    """هل الجذر الحالي مركّب من داخل لقطة timeshift؟"""
     return "timeshift-btrfs/snapshots" in root_source
 
 
-def _is_rootflags_protection_enabled() -> bool:
-    """هل rootflags=subvol=@ موجود في GRUB_CMDLINE_LINUX_DEFAULT؟"""
+def _is_rootflags_enabled() -> bool:
     try:
         with open("/etc/default/grub", "r") as f:
-            content = f.read()
-        return bool(re.search(r"GRUB_CMDLINE_LINUX_DEFAULT=.*rootflags=subvol=@", content))
+            return bool(re.search(r"GRUB_CMDLINE_LINUX_DEFAULT=.*rootflags=subvol=@", f.read()))
     except FileNotFoundError:
         return False
 
 
-def _get_main_grub_entry_linux_line() -> str:
-    """يستخرج سطر linux من الإدخال الرئيسي في grub.cfg (وليس submenu اللقطات)."""
+def _get_grub_linux_line() -> str:
     if not os.path.isfile("/boot/grub/grub.cfg"):
         return ""
     try:
@@ -75,41 +104,93 @@ def _get_main_grub_entry_linux_line() -> str:
             return ""
         content = result.stdout
 
-    # ابحث عن الإدخال الرئيسي (Manjaro Linux) واستخرج سطر linux
-    in_main_entry = False
+    in_main = False
     for line in content.splitlines():
         if line.startswith("menuentry") and "Manjaro Linux" in line and "submenu" not in line.lower():
-            in_main_entry = True
+            in_main = True
             continue
-        if in_main_entry and line.strip().startswith("linux"):
+        if in_main and line.strip().startswith("linux"):
             return line.strip()
-        if in_main_entry and line.startswith("menuentry"):
-            break  # دخلنا إدخالاً آخر
+        if in_main and line.startswith("menuentry"):
+            break
     return ""
 
 
-def _grub_entry_points_to_snapshot(linux_line: str) -> bool:
-    """هل سطر linux يشير إلى لقطة timeshift؟"""
-    return "timeshift-btrfs/snapshots" in linux_line
+def _grub_points_to_snapshot(line: str) -> bool:
+    return "timeshift-btrfs/snapshots" in line
 
 
-def _is_btrfs_system() -> bool:
-    """هل نظام الملفات الجذر btrfs؟"""
-    result = run_unprivileged(["findmnt", "-no", "FSTYPE", "/"])
-    return result.ok and result.stdout.strip() == "btrfs"
+def _kernel_from_grub(line: str) -> str:
+    parts = line.split()
+    return os.path.basename(parts[1]) if len(parts) >= 2 else ""
 
 
-def _get_kernel_from_grub_entry(linux_line: str) -> str:
-    """يستخرج اسم ملف النواة من سطر linux في grub.cfg."""
-    parts = linux_line.split()
-    if len(parts) >= 2:
-        return os.path.basename(parts[1])
-    return ""
+def _kernel_exists(name: str) -> bool:
+    return os.path.isfile(f"/boot/{name}") if name else True
 
 
-def _kernel_file_exists(kernel_name: str) -> bool:
-    """هل ملف النواة موجود فعلياً في /boot؟"""
-    return os.path.isfile(f"/boot/{kernel_name}") if kernel_name else True
+def _scan_fallback() -> ScanResult:
+    """فحص باستخدام المنطق Python الأصلي (إن لم يكن السكربت مُثبّتاً)."""
+    findings: list[ScanFinding] = []
+
+    if not _is_btrfs_system():
+        findings.append(ScanFinding(
+            title="نظام الملفات ليس btrfs — لا ينطبق هذا الفحص",
+            detail="هذا الفحص مخصّص لأنظمة btrfs مع timeshift و grub-btrfs.",
+            severity=Severity.OK, actionable=False,
+        ))
+        return ScanResult(module_name="فحص سلامة الإقلاع (btrfs + GRUB)", findings=findings)
+
+    root_source = _get_root_source()
+    booted_snapshot = _is_booted_from_snapshot(root_source)
+
+    if booted_snapshot:
+        findings.append(ScanFinding(
+            title="النظام يعمل من لقطة timeshift وليس من @ الحقيقي!",
+            detail=f"مصدر الجذر: {root_source}\nالتحديثات تُكتب داخل اللقطة وليس في @.",
+            severity=Severity.CRITICAL, actionable=False,
+        ))
+    else:
+        findings.append(ScanFinding(
+            title="الجذر يعمل من subvolume حقيقي",
+            detail=f"مصدر الجذر: {root_source}",
+            severity=Severity.OK, actionable=False,
+        ))
+
+    linux_line = _get_grub_linux_line()
+    if linux_line:
+        if _grub_points_to_snapshot(linux_line):
+            findings.append(ScanFinding(
+                title="إدخال grub الرئيسي يشير إلى لقطة قديمة",
+                detail=f"السطر: {linux_line[:120]}...",
+                severity=Severity.CRITICAL, actionable=not booted_snapshot,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="إدخال grub الرئيسي يشير لمسار طبيعي",
+                severity=Severity.OK, actionable=False,
+            ))
+
+        kernel = _kernel_from_grub(linux_line)
+        if kernel and not _kernel_exists(kernel):
+            findings.append(ScanFinding(
+                title=f"ملف النواة {kernel} غير موجود في /boot!",
+                severity=Severity.CRITICAL, actionable=False,
+            ))
+
+    if _is_rootflags_enabled():
+        findings.append(ScanFinding(
+            title="rootflags=subvol=@ مُفعّل (الحل الوقائي)",
+            severity=Severity.OK, actionable=False,
+        ))
+    else:
+        findings.append(ScanFinding(
+            title="rootflags=subvol=@ غير مُفعّل بعد",
+            detail="أضف rootflags=subvol=@ إلى GRUB_CMDLINE_LINUX_DEFAULT في /etc/default/grub",
+            severity=Severity.WARNING, actionable=not booted_snapshot,
+        ))
+
+    return ScanResult(module_name="فحص سلامة الإقلاع (btrfs + GRUB)", findings=findings)
 
 
 # ---------------------------------------------------------------------------
@@ -119,195 +200,137 @@ def _kernel_file_exists(kernel_name: str) -> bool:
 class BootSanityModule(MaintenanceModule):
     name = "فحص سلامة الإقلاع (btrfs + GRUB)"
     slug = "boot_sanity"
-    description = "يكشف مشاكل الإقلاع بعد تحديث النواة على btrfs: انزلاق إلى لقطة timeshift، إعدادات grub خاطئة، ويتحقق من الحل الوقائي الدائم"
+    description = "يكتشف مشاكل الإقلاع بعد تحديث النواة على btrfs: انزلاق إلى لقطة timeshift، إعدادات grub خاطئة، ويتحقق من الحل الوقائي الدائم"
     needs_root = True
     risk_level = RiskLevel.MODERATE
-    icon = "system-software-install"
-    has_custom_ui = True  # نافذة تشخيص تفصيلية مخصصة
+    icon = "drive-harddisk"
+    has_custom_ui = True
+    doc_url = DOC_URL  # يفتح صفحة التوثيق الكامل على GitHub
 
     def scan(self) -> ScanResult:
-        findings: list[ScanFinding] = []
+        # الطريقة 1: استدعاء السكربت الخارجي (الأفضل)
+        if _script_exists():
+            data, error = _run_script_json(fix=False)
+            if error:
+                # فشل السكربت — نستخدم fallback
+                log.warning("فشل استدعاء السكربت الخارجي (%s)، نستخدم fallback", error)
+                return _scan_fallback()
 
-        # هل النظام btrfs أصلاً؟ إن لم يكن، لا داعي للفحص
-        if not _is_btrfs_system():
-            findings.append(ScanFinding(
-                title="نظام الملفات ليس btrfs — لا ينطبق هذا الفحص",
-                detail="هذا الفحص مخصّص لأنظمة btrfs مع timeshift و grub-btrfs فقط.",
-                severity=Severity.OK,
-                actionable=False,
-            ))
+            findings: list[ScanFinding] = []
+            for p in data.get("problems", []):
+                sev = Severity.CRITICAL if p.get("severity") == "critical" else Severity.WARNING
+                findings.append(ScanFinding(
+                    title=p.get("message", ""),
+                    detail=p.get("detail", p.get("message", "")),
+                    severity=sev,
+                    actionable=data.get("can_auto_fix", False),
+                ))
+
+            if not findings:
+                findings.append(ScanFinding(
+                    title="نظام الإقلاع سليم",
+                    detail="لا توجد مشاكل في grub أو النواة أو لقطات timeshift.",
+                    severity=Severity.OK, actionable=False,
+                ))
+
             return ScanResult(module_name=self.name, findings=findings)
 
-        # 1) فحص الجذر: هل نعمل من لقطة؟
-        root_source = _get_root_source()
-        booted_from_snapshot = _is_booted_from_snapshot(root_source)
-
-        if booted_from_snapshot:
-            findings.append(ScanFinding(
-                title="النظام يعمل من لقطة timeshift وليس من subvolume @ الحقيقي!",
-                detail=(
-                    f"مصدر الجذر: {root_source}\n"
-                    "هذا يعني أن التحديثات (بما فيها النواة) تُكتب داخل اللقطة وليس في @.\n"
-                    "يجب الإصلاح عبر chroot إلى @ الحقيقي."
-                ),
-                severity=Severity.CRITICAL,
-                actionable=False,  # لا يمكن إصلاح هذا من داخل اللقطة نفسها
-                raw_value="booted_from_snapshot",
-            ))
-        else:
-            findings.append(ScanFinding(
-                title="الجذر يعمل من subvolume حقيقي (ليس لقطة)",
-                detail=f"مصدر الجذر: {root_source}",
-                severity=Severity.OK,
-                actionable=False,
-            ))
-
-        # 2) فحص إدخال grub الرئيسي
-        linux_line = _get_main_grub_entry_linux_line()
-        if linux_line:
-            if _grub_entry_points_to_snapshot(linux_line):
-                findings.append(ScanFinding(
-                    title="الإدخال الرئيسي في grub.cfg يشير إلى لقطة قديمة",
-                    detail=f"السطر: {linux_line[:120]}...",
-                    severity=Severity.CRITICAL,
-                    actionable=not booted_from_snapshot,  # يمكن إصلاح فقط إن كنا على @ حقيقي
-                    raw_value="grub_points_to_snapshot",
-                ))
-            else:
-                findings.append(ScanFinding(
-                    title="إدخال grub الرئيسي يشير لمسار طبيعي",
-                    detail="لا إشارة للقطات timeshift في الإدخال الرئيسي.",
-                    severity=Severity.OK,
-                    actionable=False,
-                ))
-
-            # 2b) هل ملف النواة موجود فعلياً؟
-            kernel_name = _get_kernel_from_grub_entry(linux_line)
-            if kernel_name and not _kernel_file_exists(kernel_name):
-                findings.append(ScanFinding(
-                    title=f"ملف النواة {kernel_name} غير موجود في /boot!",
-                    detail="النواة المُشار إليها في grub.cfg غير موجودة فعلياً — سيفشل الإقلاع.",
-                    severity=Severity.CRITICAL,
-                    actionable=False,
-                    raw_value="kernel_missing",
-                ))
-        else:
-            findings.append(ScanFinding(
-                title="تعذر قراءة إدخال grub الرئيسي",
-                detail="قد يكون النظام لا يستخدم GRUB أو الملف غير قابل للقراءة.",
-                severity=Severity.INFO,
-                actionable=False,
-            ))
-
-        # 3) فحص الحل الوقائي الدائم
-        if _is_rootflags_protection_enabled():
-            findings.append(ScanFinding(
-                title="الحل الوقائي الدائم (rootflags=subvol=@) مُفعّل",
-                detail="GRUB_CMDLINE_LINUX_DEFAULT يحتوي rootflags=subvol=@ — هذا يمنع تكرار المشكلة.",
-                severity=Severity.OK,
-                actionable=False,
-            ))
-        else:
-            findings.append(ScanFinding(
-                title="الحل الوقائي الدائم غير مُفعّل بعد",
-                detail=(
-                    "أضف rootflags=subvol=@ إلى GRUB_CMDLINE_LINUX_DEFAULT في /etc/default/grub\n"
-                    "ثم شغّل grub-mkconfig. هذا يمنع تكرار مشكلة 'kernel not found' حتى لو\n"
-                    "انزلق اكتشاف subvolume الحي في grub-mkconfig مستقبلاً."
-                ),
-                severity=Severity.WARNING,
-                actionable=not booted_from_snapshot,
-                raw_value="rootflags_not_set",
-            ))
-
-        return ScanResult(module_name=self.name, findings=findings)
+        # الطريقة 2: fallback Python أصلي
+        log.info("السكربت الخارجي غير مُثبّت، نستخدم منطق Python أصلي")
+        return _scan_fallback()
 
     def preview(self) -> list[PreviewStep]:
-        root_source = _get_root_source()
-        booted_from_snapshot = _is_booted_from_snapshot(root_source)
-        steps: list[PreviewStep] = []
+        # إن وُجد السكربت الخارجي، نستخدم fix_commands منه
+        if _script_exists():
+            data, _ = _run_script_json(fix=False)
+            if data:
+                steps: list[PreviewStep] = []
+                for cmd in data.get("fix_commands", []):
+                    steps.append(PreviewStep(description=f"تنفيذ: {cmd}", command=cmd))
+                if not data.get("can_auto_fix"):
+                    steps.append(PreviewStep(
+                        description="⚠ الإصلاح التلقائي غير ممكن من هذه الجلسة. راجع التوثيق.",
+                        command=None,
+                    ))
+                if not steps:
+                    steps.append(PreviewStep(description="لا توجد إجراءات ضرورية."))
+                return steps
 
-        if booted_from_snapshot:
+        # Fallback: نعرض المعاينة يدوياً
+        steps = []
+        root_source = _get_root_source()
+        if _is_booted_from_snapshot(root_source):
             steps.append(PreviewStep(
-                description="لا يمكن الإصلاح تلقائياً من داخل لقطة — يجب إصلاح عبر chroot إلى @ الحقيقي.",
-                command=None,
-            ))
-            steps.append(PreviewStep(
-                description="الخطوات اليدوية:",
-                command="sudo mount -o subvol=@ /dev/sdXN /mnt/realroot && sudo arch-chroot /mnt/realroot",
+                description="لا يمكن الإصلاح تلقائياً من داخل لقطة — استخدم 'تشخيص تفصيلي' للخطوات اليدوية.",
             ))
             return steps
 
-        needs_fix = False
-
-        # هل grub.cfg يشير للقطة؟
-        linux_line = _get_main_grub_entry_linux_line()
-        if linux_line and _grub_entry_points_to_snapshot(linux_line):
-            needs_fix = True
-
-        # هل rootflags غير مُفعّل؟
-        if not _is_rootflags_protection_enabled():
-            needs_fix = True
+        if not _is_rootflags_enabled():
             steps.append(PreviewStep(
                 description="إضافة rootflags=subvol=@ إلى GRUB_CMDLINE_LINUX_DEFAULT",
                 command="sudo nano /etc/default/grub",
             ))
 
-        if needs_fix:
+        linux_line = _get_grub_linux_line()
+        if linux_line and _grub_points_to_snapshot(linux_line):
             steps.append(PreviewStep(
                 description="إعادة توليد grub.cfg",
                 command="sudo grub-mkconfig -o /boot/grub/grub.cfg",
             ))
-        else:
-            steps.append(PreviewStep(
-                description="لا توجد إجراءات ضرورية — النظام سليم.",
-                command=None,
-            ))
+
+        if not steps:
+            steps.append(PreviewStep(description="لا توجد إجراءات ضرورية — النظام سليم."))
 
         return steps
 
     def apply(self) -> ApplyResult:
+        # إن وُجد السكربت الخارجي مع --fix
+        if _script_exists():
+            data, error = _run_script_json(fix=True)
+            if error:
+                return ApplyResult(success=False, message=error)
+            if not data.get("can_auto_fix"):
+                return ApplyResult(
+                    success=False,
+                    message="لا يمكن الإصلاح تلقائياً. النظام يعمل من داخل لقطة timeshift.",
+                    log_output=json.dumps(data, indent=2, ensure_ascii=False),
+                )
+            return ApplyResult(
+                success=True,
+                message="تم تنفيذ الإصلاحات. أعد التشغيل للتحقق بـ: findmnt /",
+                log_output=json.dumps(data, indent=2, ensure_ascii=False),
+            )
+
+        # Fallback: إصلاح يدوي عبر Python
         root_source = _get_root_source()
         if _is_booted_from_snapshot(root_source):
             return ApplyResult(
                 success=False,
-                message="لا يمكن الإصلاح تلقائياً من داخل لقطة. استخدم 'تشخيص تفصيلي' للخطوات اليدوية.",
+                message="لا يمكن الإصلاح تلقائياً من داخل لقطة. استخدم 'تشخيص تفصيلي'.",
             )
 
-        # 1) تفعيل الحل الوقائي إن لم يكن مُفعّلاً
+        # 1) تفعيل rootflags إن لم يكن مُفعّلاً
         grub_default = "/etc/default/grub"
-        if not _is_rootflags_protection_enabled() and os.path.isfile(grub_default):
-            # قراءة الملف
+        if not _is_rootflags_enabled() and os.path.isfile(grub_default):
             with open(grub_default, "r") as f:
                 content = f.read()
-
-            # إضافة rootflags=subvol=@ إلى GRUB_CMDLINE_LINUX_DEFAULT
-            # نبحث عن السطر ونُلحق القيمة قبل علامة الإقفال الأخيرة
             modified = []
             for line in content.splitlines():
                 if line.strip().startswith("GRUB_CMDLINE_LINUX_DEFAULT="):
-                    # أضف rootflags=subvol=@ إن لم يكن موجوداً
                     if "rootflags=subvol=@" not in line:
-                        # أضف قبل علامة الإقفال الأخيرة
                         if line.rstrip().endswith("'"):
                             line = line.rstrip()[:-1] + " rootflags=subvol=@'"
                         elif line.rstrip().endswith('"'):
                             line = line.rstrip()[:-1] + ' rootflags=subvol=@"'
                 modified.append(line)
-
-            # كتابة الملف عبر pkexec (يحتاج صلاحيات جذر)
             new_content = "\n".join(modified)
-            # نكتب عبر ملف مؤقت + pkexec cp
             tmp_path = "/tmp/grub_default_modified"
             with open(tmp_path, "w") as f:
                 f.write(new_content)
             cp_result = run_privileged(["cp", tmp_path, grub_default])
             os.unlink(tmp_path)
             if not cp_result.ok:
-                return ApplyResult(
-                    success=False,
-                    message=f"فشل تحديث /etc/default/grub: {cp_result.stderr}",
-                )
+                return ApplyResult(success=False, message=f"فشل تحديث /etc/default/grub: {cp_result.stderr}")
 
         # 2) إعادة توليد grub.cfg
         result = run_privileged(["grub-mkconfig", "-o", "/boot/grub/grub.cfg"])

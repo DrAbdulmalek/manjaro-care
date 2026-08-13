@@ -92,6 +92,10 @@ class MaintenanceModule(ABC):
     # واحد منها قرار مستقل (برامج بدء التشغيل مثلاً).
     has_custom_ui: bool = False
 
+    # رابط اختياري لتوثيق مفصّل خارجي (GitHub، ويكي...). إن وُجد، تعرض
+    # البطاقة زر "اقرأ التوثيق" يفتح الرابط في المتصفح.
+    doc_url: str | None = None
+
     @abstractmethod
     def scan(self) -> ScanResult:
         """فحص للقراءة فقط. يجب ألا يُغيّر أي حالة في النظام."""

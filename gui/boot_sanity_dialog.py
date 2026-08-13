@@ -7,26 +7,26 @@ gui/boot_sanity_dialog.py
 كما هي موثّقة في manjaro-doctor/issues/grub-btrfs-snapshot-boot.md،
 مع الأوامر الجاهزة للنسخ والتشغيل.
 
-هذه النافذة تُسجَّل في gui/custom_dialogs.py وتُفتح بزر "تشخيص تفصيلي"
-على بطاقة boot_sanity في الواجهة الرئيسية.
+يُضاف إليها زر "اقرأ التشخيص الكامل" يفتح صفحة التوثيق على GitHub.
 
 المرجع: https://github.com/DrAbdulmalek/manjaro-doctor
 """
 
 from __future__ import annotations
+import webbrowser
 
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QGroupBox, QFrame, QSizePolicy,
+    QTextEdit, QGroupBox, QSizePolicy,
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QClipboard, QApplication
+from PyQt5.QtGui import QFont
 
 from modules.boot_sanity import (
-    _get_root_source, _is_booted_from_snapshot,
-    _is_rootflags_protection_enabled, _get_main_grub_entry_linux_line,
-    _grub_entry_points_to_snapshot, _is_btrfs_system,
-    _get_kernel_from_grub_entry, _kernel_file_exists,
+    DOC_URL, _script_exists, _run_script_json,
+    _get_root_source, _is_booted_from_snapshot, _is_rootflags_enabled,
+    _get_grub_linux_line, _grub_points_to_snapshot, _is_btrfs_system,
+    _kernel_from_grub, _kernel_exists,
 )
 
 
@@ -80,6 +80,11 @@ class BootSanityDialog(QDialog):
         # ── أزرار ──
         btn_row = QHBoxLayout()
 
+        doc_btn = QPushButton("اقرأ التشخيص الكامل")
+        doc_btn.setStyleSheet("background-color: #6a1b9a;")
+        doc_btn.clicked.connect(self._open_documentation)
+        btn_row.addWidget(doc_btn)
+
         copy_btn = QPushButton("نسخ التقرير")
         copy_btn.setStyleSheet("background-color: #1565c0;")
         copy_btn.clicked.connect(self._copy_report)
@@ -98,10 +103,57 @@ class BootSanityDialog(QDialog):
 
     def _run_diagnostics(self) -> None:
         """يشغّل كل الفحوصات ويعرض النتائج."""
+        # إن وُجد السكربت الخارجي مع --json، نستخدمه مباشرة
+        if _script_exists():
+            self._run_diagnostics_from_script()
+        else:
+            self._run_diagnostics_fallback()
+
+    def _run_diagnostics_from_script(self) -> None:
+        """يستدعي السكربت الخارجي مع --json ويعرض النتائج المنظمة."""
+        data, error = _run_script_json(fix=False)
+        lines = []
+        problems = 0
+
+        lines.append("═══ مصدر الفحص: boot-sanity-check.sh --json ═══")
+        lines.append("✅ السكربت الخارجي (manjaro-doctor) مُثبّت ومُستخدَم")
+        lines.append("")
+
+        if error:
+            lines.append(f"⚠️ فشل استدعاء السكربت: {error}")
+            lines.append("يُستخدم المنطق الداخلي كـ fallback...")
+            self._run_diagnostics_fallback()
+            return
+
+        lines.append(f"مصدر الجذر: {data.get('root_source', 'غير معروف')}")
+        lines.append("")
+
+        # عرض كل مشكلة
+        for p in data.get("problems", []):
+            problems += 1
+            icon = "❌" if p.get("severity") == "critical" else "⚠️"
+            lines.append(f"{icon} [{p.get('severity', '?').upper()}] {p.get('message', '')}")
+            if p.get("detail"):
+                lines.append(f"   {p['detail']}")
+
+        if problems == 0:
+            lines.append("✅ لا مشاكل — نظام الإقلاع سليم.")
+
+        lines.append("")
+        lines.append(f"rootflags=subvol=@ مُفعّل: {'نعم' if data.get('preventive_fix_enabled') else 'لا'}")
+        lines.append(f"يمكن الإصلاح تلقائياً: {'نعم' if data.get('can_auto_fix') else 'لا (يحتاج chroot)'}")
+
+        self._render_result(lines, problems)
+
+    def _run_diagnostics_fallback(self) -> None:
+        """يشغّل الفحوصات باستخدام المنطق Python الداخلي (fallback)."""
         lines: list[str] = []
         problems_found = 0
 
-        # ── هل النظام btrfs؟ ──
+        lines.append("══️ مصدر الفحص: منطق Python داخلي (fallback) ═══")
+        lines.append("ℹ️ السكربت الخارجي غير مُثبّت — ثبّت manjaro-doctor للاستفادة من --json")
+        lines.append("")
+
         is_btrfs = _is_btrfs_system()
         lines.append("═══ نوع نظام الملفات ═══")
         if is_btrfs:
@@ -111,7 +163,6 @@ class BootSanityDialog(QDialog):
             self._render_result(lines, 0)
             return
 
-        # ── فحص 1: مصدر الجذر ──
         lines.append("")
         lines.append("═══ فحص 1: مصدر الجذر الحالي ═══")
         root_source = _get_root_source()
@@ -128,29 +179,26 @@ class BootSanityDialog(QDialog):
         else:
             lines.append("✅ الجذر يعمل من subvolume حقيقي (ليس لقطة)")
 
-        # ── فحص 2: إدخال grub الرئيسي ──
         lines.append("")
         lines.append("═══ فحص 2: الإدخال الرئيسي في grub.cfg ═══")
-        linux_line = _get_main_grub_entry_linux_line()
+        linux_line = _get_grub_linux_line()
         if linux_line:
             lines.append(f"سطر linux في الإدخال الرئيسي:")
-            # نعرض أول 150 حرف فقط لمنع السطر الطويل جداً
             display_line = linux_line if len(linux_line) <= 150 else linux_line[:150] + "..."
             lines.append(f"  {display_line}")
 
-            if _grub_entry_points_to_snapshot(linux_line):
+            if _grub_points_to_snapshot(linux_line):
                 problems_found += 1
                 lines.append("")
                 lines.append("❌ مشكلة: الإدخال الرئيسي يشير إلى لقطة timeshift!")
-                lines.append("   بعد التحديث، سيبحث GRUB عن النواة في اللقطة القديمة ولن يجدها.")
+                lines.append("   بعد التحديث، سيبحث GRUB عن النواة في اللقطة الق&oldmc; القديمة ولن يجدها.")
             else:
                 lines.append("✅ الإدخال الرئيسي يشير لمسار طبيعي (ليس لقطة)")
 
-            # فحص ملف النواة
-            kernel_name = _get_kernel_from_grub_entry(linux_line)
+            kernel_name = _kernel_from_grub(linux_line)
             if kernel_name:
                 lines.append(f"ملف النواة المُشار إليه: /boot/{kernel_name}")
-                if _kernel_file_exists(kernel_name):
+                if _kernel_exists(kernel_name):
                     lines.append(f"✅ الملف موجود")
                 else:
                     problems_found += 1
@@ -158,25 +206,23 @@ class BootSanityDialog(QDialog):
         else:
             lines.append("⚠️ تعذر قراءة إدخال grub الرئيسي")
 
-        # ── فحص 3: الحل الوقائي الدائم ──
         lines.append("")
         lines.append("═══ فحص 3: الحل الوقائي الدائم (rootflags=subvol=@) ═══")
-        if _is_rootflags_protection_enabled():
+        if _is_rootflags_enabled():
             lines.append("✅ rootflags=subvol=@ مُفعّل في GRUB_CMDLINE_LINUX_DEFAULT")
             lines.append("   هذا يمنع تكرار المشكلة حتى لو أخطأت grub-mkconfig مستقبلاً.")
         else:
             problems_found += 1
             lines.append("⚠️ rootflags=subvol=@ غير مُفعّل بعد")
             lines.append("   أضفه إلى GRUB_CMDLINE_LINUX_DEFAULT في /etc/default/grub:")
+
             lines.append("   GRUB_CMDLINE_LINUX_DEFAULT='quiet splash udev.log_priority=3 rootflags=subvol=@'")
             lines.append("   ثم: sudo grub-mkconfig -o /boot/grub/grub.cfg")
 
         self._render_result(lines, problems_found)
 
     def _render_result(self, lines: list[str], problems: int) -> None:
-        """يعرض النتائج في النافذة."""
         self.detail_box.setPlainText("\n".join(lines))
-
         if problems == 0:
             self.summary_label.setText("✅ لا مشاكل — نظام الإقلاع سليم.")
             self.summary_label.setStyleSheet("color: #66bb6a; font-weight: bold;")
@@ -192,67 +238,59 @@ class BootSanityDialog(QDialog):
                 self.summary_group.styleSheet() + "QGroupBox { border-color: #c62828; }"
             )
 
+    def _open_documentation(self) -> None:
+        """يفتح صفحة التوثيق الكامل على GitHub."""
+        webbrowser.open(DOC_URL)
+
     def _copy_report(self) -> None:
         """ينسخ التقرير للحافظة."""
+        from PyQt5.QtWidgets import QApplication
         clipboard = QApplication.clipboard()
         clipboard.setText(self.detail_box.toPlainText())
 
     def _show_fix_instructions(self) -> None:
-        """يعرض تعليمات الإصلاح التفصيلية (من manjaro-doctor)."""
+        """يعرض تعليمات الإصلاح التفصيلية."""
         instructions = """═══════════════════════════════════════════════════════
  تعليمات الإصلاح — حسب حالة النظام
 ═══════════════════════════════════════════════════════
 
 الحالة 1: النظام يعمل من داخل لقطة (findmnt / يُظهر timeshift-btrfs/snapshots)
 ─────────────────────────────────────────────────────────
-هذه الحالة لا يمكن إصلاحها تلقائياً من الجلسة الحالية.
+لا يمكن إصلاحها تلقائياً من الجلسة الحالية.
 يجب الإصلاح عبر arch-chroot إلى @ الحقيقي:
 
-  # 1. ركّب subvolumes الضرورية
   sudo mount -o subvol=@ /dev/sdXN /mnt/realroot
   sudo mount -o subvol=@home /dev/sdXN /mnt/realroot/home
   sudo mount -o subvol=@cache /dev/sdXN /mnt/realroot/var/cache
   sudo mount -o subvol=@log /dev/sdXN /mnt/realroot/var/log
   sudo mount /dev/sdXN1 /mnt/realroot/boot/efi
-
-  # 2. ادخل chroot
   sudo arch-chroot /mnt/realroot
-
-  # 3. أعد تثبيت النواة بالقوة
-  pacman -S linuxXXX --overwrite '*'    # غيّر XXX حسب نواتك (مثلاً linux618)
-
-  # 4. أعد بناء initramfs و grub
+  pacman -S linuxXXX --overwrite '*'
   mkinitcpio -P
   grub-mkconfig -o /boot/grub/grub.cfg
   exit
-
-  # 5. أعد التشغيل
   sudo umount -R /mnt/realroot
   sudo reboot
 
 
 الحالة 2: النظام على @ الحقيقي لكن grub.cfg يشير للقطة
 ─────────────────────────────────────────────────────────
-هذه يمكن إصلاحها بزر "تطبيق" في البطاقة الرئيسية:
+يمكن إصلاحها بزر "تطبيق" في البطاقة الرئيسية:
   - يُفعّل rootflags=subvol=@ في /etc/default/grub
   - يُعيد توليد grub.cfg
   - أعد التشغيل وتحقق بـ: findmnt /
 
 
-الحل النهائي الدائم (يمنع تكرار المشكلة نهائياً):
-─────────────────────────────────────────────────────
+الحل النهائي الدائم:
+─────────────────────
 أضف rootflags=subvol=@ إلى GRUB_CMDLINE_LINUX_DEFAULT:
-
-  sudo nano /etc/default/grub
-  # غيّر السطر إلى:
   GRUB_CMDLINE_LINUX_DEFAULT='quiet splash udev.log_priority=3 rootflags=subvol=@'
-
   sudo grub-mkconfig -o /boot/grub/grub.cfg
   sudo reboot
 
 التحقق: findmnt / يجب أن يُظهر /dev/sdXN[/@] دائماً.
 
 ═══════════════════════════════════════════════════════
- المرجع: github.com/DrAbdulmalek/manjaro-doctor
+ التوثيق الكامل: github.com/DrAbdulmalek/manjaro-doctor
 ═══════════════════════════════════════════════════════"""
         self.detail_box.setPlainText(instructions)
