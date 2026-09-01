@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-modules/registry.py
-====================
-نقطة التسجيل المركزية لكل وحدات الصيانة. إضافة وحدة جديدة مستقبلاً
-(mirror_rank, journal_vacuum, kernel_cleanup, startup_manager...)
-تتطلب فقط:
-  1) كتابة ملف modules/xxx.py يرث من MaintenanceModule
-  2) إضافة سطر استيراد + إضافة الكلاس هنا
-
-لا حاجة لتعديل أي كود في core/ أو gui/ عند إضافة وحدة جديدة.
-"""
-
+"""modules/registry.py — نقطة التسجيل المركزية."""
 from __future__ import annotations
 
 from core.module_base import MaintenanceModule
@@ -24,27 +13,44 @@ from modules.mirror_rank import MirrorRankModule
 from modules.kernel_cleanup import KernelCleanupModule
 from modules.disk_analyzer import DiskAnalyzerModule
 from modules.startup_manager import StartupManagerModule
+
+# وحدات جديدة مستوحاة من Garuda Assistant
+from modules.firewall_manager import FirewallManagerModule
+from modules.repo_manager import RepoManagerModule
+from modules.locale_manager import LocaleManagerModule
+from modules.time_manager import TimeManagerModule
 from modules.boot_sanity import BootSanityModule
+from modules.boot_manager import BootManagerModule
+from modules.system_info import SystemInfoModule
+from modules.driver_manager import DriverManagerModule
+from modules.btrfs_snapper import BtrfsSnapperModule
+from modules.printer_manager import PrinterManagerModule
+from modules.user_manager import UserManagerModule
+from modules.flatpak_cleanup import FlatpakCleanupModule
+from modules.snapper_cleanup import SnapperCleanupModule
 
 
-def get_all_modules() -> list[MaintenanceModule]:
-    """يُرجع نسخة جديدة من كل وحدة مسجّلة، بالترتيب المطلوب عرضه في الواجهة.
-
-    الترتيب: الأكثر أماناً/فائدة يومية أولاً، الأكثر حساسية (kernel_cleanup)
-    قرب النهاية، والوحدات الإخبارية البحتة (disk_analyzer, startup_manager)
-    في الآخر لأنها لا تتطلب قراراً فورياً.
-
-    boot_sanity تُوضع بعد kernel_cleanup لأنها مرتبطة بالإقلاع أيضاً
-    لكنها فحصيّة بطبيعتها (لا تنظّف شيئاً بل تكتشف المشاكل).
-    """
+def get_all_modules():
     return [
+        SystemInfoModule(),
         NetworkResetModule(),
         FailedServicesModule(),
+        FirewallManagerModule(),
         PackageCleanupModule(),
         JournalVacuumModule(),
         MirrorRankModule(),
-        KernelCleanupModule(),
-        BootSanityModule(),
+        RepoManagerModule(),
         DiskAnalyzerModule(),
+        FlatpakCleanupModule(),
+        KernelCleanupModule(),
+        DriverManagerModule(),
+        BootManagerModule(),
+        BtrfsSnapperModule(),
+        BootSanityModule(),
+        SnapperCleanupModule(),
+        LocaleManagerModule(),
+        TimeManagerModule(),
+        UserManagerModule(),
+        PrinterManagerModule(),
         StartupManagerModule(),
     ]
