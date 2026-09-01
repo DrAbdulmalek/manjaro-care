@@ -54,7 +54,7 @@ class RepoManagerModule(MaintenanceModule):
     needs_root = True
     risk_level = RiskLevel.SAFE
     icon = "folder-download"
-    has_custom_ui = True  # نافذة مخصصة لتفعيل/تعطيل المستودعات
+    has_custom_ui = True  # ← نافذة مخصصة
 
     def scan(self) -> ScanResult:
         conf = _read_pacman_conf()

@@ -2,411 +2,300 @@
 # -*- coding: utf-8 -*-
 """
 gui/repo_dialog.py
-====================
-نافذة مخصصة لإدارة مستودعات pacman — تفعيل/تعطيل المستودعات الأساسية
-(core, extra, community, multilib) معاً + تثبيت AUR helper.
+===================
+نافذة مخصصة لإدارة مستودعات pacman — تفعيل/تعطيل كل مستودع على حدة
+عبر checkboxes، مع إمكانية تثبيت AUR helper (yay/paru).
 
-مستوحى من Garuda Assistant → Repositories.
-يعتمد على نفس نمط StartupManagerDialog في:
-  - استخدام QTableWidget مع أزرار تبديل لكل صف
-  - RTL layout
-  - pkexec للتعديلات التي تتطلب صلاحيات
+مستوحاة من Garuda Assistant → Repositories، لكن مبنية حول
+/etc/pacman.conf مباشرة بدل سكربتات Garuda.
 """
 from __future__ import annotations
-
 import re
 import shutil
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QCheckBox,
-    QMessageBox, QGroupBox, QFrame,
+    QTableWidget, QTableWidgetItem, QCheckBox, QMessageBox,
+    QHeaderView, QProgressDialog, QApplication,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
 
-from core.privilege import run_unprivileged, run_privileged
+from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
 
 log = get_logger("repo_dialog")
 
 _PACMAN_CONF = Path("/etc/pacman.conf")
 
-# المستودعات الأساسية بالترتيب الذي تظهر به في pacman.conf
-_CORE_REPOS = ["core", "extra", "community", "multilib"]
 
-# مسارات AUR helpers المحتملة
-_AUR_HELPERS = ["yay", "paru", "trizen"]
+class RepoToggleWorker(QThread):
+    """خيط خلفي لتعديل pacman.conf وتشغيل pacman -Sy."""
+    finished_ok = pyqtSignal(str)
+    failed = pyqtSignal(str)
 
+    def __init__(self, repo_name: str, enable: bool, parent=None):
+        super().__init__(parent)
+        self.repo_name = repo_name
+        self.enable = enable
 
-def _read_pacman_conf() -> str:
-    """قراءة pacman.conf (للقراءة فقط — لا يحتاج صلاحيات)."""
-    try:
-        return _PACMAN_CONF.read_text(encoding="utf-8")
-    except Exception as e:
-        log.warning(f"فشل قراءة pacman.conf: {e}")
-        return ""
-
-
-def _is_repo_enabled(conf_text: str, repo_name: str) -> bool:
-    """هل المستودع مفعل (السطر لا يبدأ بـ #)؟"""
-    pattern = rf"^\s*#?\s*\[{re.escape(repo_name)}\]\s*$"
-    for line in conf_text.splitlines():
-        if re.match(pattern, line):
-            return not line.strip().startswith("#")
-    return False
-
-
-def _has_aur_helper() -> str | None:
-    """تحقق من توفر AUR helper."""
-    for helper in _AUR_HELPERS:
-        if shutil.which(helper):
-            return helper
-    return None
-
-
-def _toggle_repo_in_conf(conf_text: str, repo_name: str, enable: bool) -> str:
-    """تعديل نص pacman.conf لتفعيل/تعطيل مستودع معين.
-
-    تعمل على مستوى النص (string manipulation) — لا تكتب للملف.
-    """
-    lines = conf_text.splitlines()
-    new_lines = []
-    found = False
-
-    for line in lines:
-        pattern = rf"^(\s*#?\s*)\[{re.escape(repo_name)}\]\s*$"
-        m = re.match(pattern, line)
-        if m:
-            found = True
-            if enable:
-                new_lines.append(f"[{repo_name}]")
-            else:
-                new_lines.append(f"#[{repo_name}]")
-        else:
-            new_lines.append(line)
-
-    if not found:
-        # المستودع غير موجود — أضفه في النهاية
-        new_lines.append("")
-        if enable:
-            new_lines.append(f"[{repo_name}]")
-        else:
-            new_lines.append(f"#[{repo_name}]")
-
-    return "\n".join(new_lines) + "\n"
-
-
-class _ApplyChangesWorker(QThread):
-    """Worker thread لتطبيق التغييرات على pacman.conf."""
-
-    finished_signal = pyqtSignal(bool, str)
-
-    def __init__(self, new_conf_text: str):
-        super().__init__()
-        self.new_conf_text = new_conf_text
-
-    def run(self):
+    def run(self) -> None:
         try:
-            # كتابة pacman.conf تتطلب صلاحيات — استخدم pkexec
-            # نكتب النص الجديد إلى ملف مؤقت ثم نستخدم pkexec cp
-            import tempfile
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".conf", delete=False, encoding="utf-8"
-            ) as tmp:
-                tmp.write(self.new_conf_text)
-                tmp_path = tmp.name
-
-            # نسخ الملف المؤقت إلى pacman.conf عبر pkexec
-            result = run_privileged([
-                "cp", tmp_path, str(_PACMAN_CONF)
-            ])
-
-            # حذف الملف المؤقت
-            try:
-                Path(tmp_path).unlink()
-            except Exception:
-                pass
-
-            if result.ok:
-                # مزامنة pacman بعد التغيير
-                sync_result = run_privileged(["pacman", "-Sy", "--noconfirm"])
-                if sync_result.ok:
-                    self.finished_signal.emit(
-                        True,
-                        "تم تحديث المستودعات وإعادة المزامنة بنجاح."
-                    )
-                else:
-                    self.finished_signal.emit(
-                        True,
-                        f"تم تحديث pacman.conf لكن فشل المزامنة: {sync_result.stderr}"
-                    )
-            else:
-                self.finished_signal.emit(
-                    False,
-                    f"فشل كتابة pacman.conf: {result.stderr}"
-                )
-        except Exception as e:
-            self.finished_signal.emit(False, f"خطأ غير متوقع: {e}")
-
-
-class _InstallAurHelperWorker(QThread):
-    """Worker thread لتثبيت AUR helper (yay)."""
-
-    finished_signal = pyqtSignal(bool, str)
-
-    def run(self):
-        try:
-            # تحقق أولاً إن كان مثبتاً
-            if shutil.which("yay"):
-                self.finished_signal.emit(True, "yay مثبت بالفعل.")
+            # قراءة الملف الحالي
+            result = run_privileged(["cat", str(_PACMAN_CONF)])
+            if not result.ok:
+                self.failed.emit("فشل قراءة pacman.conf")
                 return
 
-            # yay متوفر في مستودعات Manjaro الرسمية (ليس في AUR فقط)
-            result = run_privileged(["pacman", "-S", "--noconfirm", "yay"])
-            if result.ok:
-                self.finished_signal.emit(True, "تم تثبيت yay بنجاح.")
+            lines = result.stdout.splitlines()
+            new_lines = []
+            inside_repo = False
+            modified = False
+
+            for line in lines:
+                stripped = line.strip()
+                # هل هذا السطر يبدأ قسم المستودع المستهدف؟
+                if re.match(rf"^\s*#?\s*\[{re.escape(self.repo_name)}\]\s*$", stripped):
+                    inside_repo = True
+                    if self.enable:
+                        # إزالة #
+                        new_line = re.sub(rf"^\s*#\s*(\[{re.escape(self.repo_name)}\])", r"\1", line)
+                    else:
+                        # إضافة #
+                        if not stripped.startswith("#"):
+                            new_line = f"#{line}"
+                        else:
+                            new_line = line
+                    if new_line != line:
+                        modified = True
+                    new_lines.append(new_line)
+                elif inside_repo and stripped.startswith("[") and not stripped.startswith("[options]"):
+                    # دخلنا قسم مستودع آخر
+                    inside_repo = False
+                    new_lines.append(line)
+                elif inside_repo and self.enable and stripped.startswith("#Include"):
+                    # تفعيل Include أيضاً داخل القسم
+                    new_line = re.sub(r"^\s*#\s*(Include=)", r"\1", line)
+                    if new_line != line:
+                        modified = True
+                    new_lines.append(new_line)
+                elif inside_repo and not self.enable and stripped.startswith("Include="):
+                    # تعطيل Include
+                    new_line = f"#{line}"
+                    if new_line != line:
+                        modified = True
+                    new_lines.append(new_line)
+                else:
+                    new_lines.append(line)
+
+            if not modified:
+                self.finished_ok.emit(f"المستودع {self.repo_name} كان بالحالة المطلوبة بالفعل.")
+                return
+
+            new_text = "\n".join(new_lines) + "\n"
+            # كتابة الملف
+            w_result = run_privileged(["bash", "-c", f"cat > {_PACMAN_CONF} << 'PACMANEOF'\n{new_text}PACMANEOF"])
+            if not w_result.ok:
+                self.failed.emit(f"فشل كتابة pacman.conf: {w_result.stderr}")
+                return
+
+            # تحديث قاعدة البيانات
+            sy_result = run_privileged(["pacman", "-Sy"])
+            msg = f"تم {'تفعيل' if self.enable else 'تعطيل'} مستودع {self.repo_name}"
+            self.finished_ok.emit(msg)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class AurInstallWorker(QThread):
+    """خيط خلفي لتثبيت yay أو paru."""
+    finished_ok = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, helper: str, parent=None):
+        super().__init__(parent)
+        self.helper = helper
+
+    def run(self) -> None:
+        try:
+            if self.helper == "yay":
+                # تثبيت yay من AUR
+                cmds = [
+                    "pacman -S --needed --noconfirm git base-devel",
+                    "cd /tmp && rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si --noconfirm",
+                ]
+            elif self.helper == "paru":
+                cmds = [
+                    "pacman -S --needed --noconfirm git base-devel",
+                    "cd /tmp && rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si --noconfirm",
+                ]
             else:
-                self.finished_signal.emit(
-                    False,
-                    f"فشل تثبيت yay: {result.stderr}"
-                )
-        except Exception as e:
-            self.finished_signal.emit(False, f"خطأ غير متوقع: {e}")
+                self.failed.emit("AUR helper غير معروف")
+                return
+
+            for cmd in cmds:
+                result = run_privileged(["bash", "-c", cmd])
+                if not result.ok and result.returncode != 0:
+                    self.failed.emit(f"فشل: {cmd}\n{result.stderr}")
+                    return
+
+            self.finished_ok.emit(f"تم تثبيت {self.helper} بنجاح!")
+        except Exception as exc:
+            self.failed.emit(str(exc))
 
 
 class RepoManagerDialog(QDialog):
-    """نافذة إدارة مستودعات pacman.
-
-    تعرض جدولاً بالمستودعات الأساسية مع checkbox لكل منها،
-    وزراً لتثبيت AUR helper، وزراً لتطبيق التغييرات.
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("إدارة مستودعات pacman")
-        self.resize(600, 480)
+        self.resize(560, 420)
         self.setLayoutDirection(Qt.RightToLeft)
 
-        self._original_conf = _read_pacman_conf()
-        self._current_conf = self._original_conf
-        self._apply_worker = None
-        self._aur_worker = None
-
+        self._toggle_worker: RepoToggleWorker | None = None
+        self._aur_worker: AurInstallWorker | None = None
         self._build_ui()
         self._reload()
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
-        # ── معلومات توضيحية ──
         info = QLabel(
-            "فعّل أو عطّل المستودعات الأساسية. التعطيل قد يمنع تثبيت حزم مهمة "
-            "(خاصة multilib للبرامج 32-bit)."
+            "فعّل أو عطّل كل مستودع على حدة. التعديلات تُطبَّق مباشرة على "
+            "/etc/pacman.conf مع تحديث قاعدة البيانات."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color: #aaaaaa; padding: 4px;")
+        info.setStyleSheet("color: #aaaaaa;")
         layout.addWidget(info)
 
-        # ── مجموعة المستودعات ──
-        repos_group = QGroupBox("المستودعات الأساسية")
-        repos_layout = QVBoxLayout(repos_group)
-
+        # ── جدول المستودعات ──
         self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["المستودع", "الحالة", "تبديل"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.setHorizontalHeaderLabels(["المستودع", "الوصف", "الحالة"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.NoSelection)
-        repos_layout.addWidget(self.table)
+        layout.addWidget(self.table)
 
-        layout.addWidget(repos_group)
-
-        # ── مجموعة AUR helper ──
-        aur_group = QGroupBox("AUR Helper")
-        aur_layout = QHBoxLayout(aur_group)
-
-        self.aur_label = QLabel("جاري الفحص...")
-        self.aur_label.setStyleSheet("padding: 4px;")
+        # ── قسم AUR helper ──
+        aur_layout = QHBoxLayout()
+        self.aur_label = QLabel("")
+        self.aur_label.setStyleSheet("color: #cfcfcf;")
         aur_layout.addWidget(self.aur_label)
-
         aur_layout.addStretch()
 
-        self.install_aur_btn = QPushButton("تثبيت yay")
-        self.install_aur_btn.clicked.connect(self._install_aur_helper)
-        aur_layout.addWidget(self.install_aur_btn)
+        self.yay_btn = QPushButton("ثبّت yay")
+        self.yay_btn.setStyleSheet("background-color: #1565c0;")
+        self.yay_btn.clicked.connect(lambda: self._install_aur("yay"))
+        aur_layout.addWidget(self.yay_btn)
 
-        layout.addWidget(aur_group)
+        self.paru_btn = QPushButton("ثبّت paru")
+        self.paru_btn.setStyleSheet("background-color: #1565c0;")
+        self.paru_btn.clicked.connect(lambda: self._install_aur("paru"))
+        aur_layout.addWidget(self.paru_btn)
 
-        # ── أزرار التحكم ──
-        buttons_row = QHBoxLayout()
+        layout.addLayout(aur_layout)
 
-        self.apply_btn = QPushButton("تطبيق التغييرات")
-        self.apply_btn.setStyleSheet(
-            "QPushButton { background-color: #2d5f2d; color: white; "
-            "padding: 8px 16px; font-weight: bold; }"
-        )
-        self.apply_btn.clicked.connect(self._apply_changes)
-        buttons_row.addWidget(self.apply_btn)
-
-        buttons_row.addStretch()
-
-        refresh_btn = QPushButton("تحديث")
-        refresh_btn.clicked.connect(self._reload)
-        buttons_row.addWidget(refresh_btn)
-
+        # ── أزرار الإغلاق ──
+        close_row = QHBoxLayout()
+        close_row.addStretch()
         close_btn = QPushButton("إغلاق")
         close_btn.clicked.connect(self.accept)
-        buttons_row.addWidget(close_btn)
+        close_row.addWidget(close_btn)
+        layout.addLayout(close_row)
 
-        layout.addLayout(buttons_row)
+    def _read_conf(self) -> str:
+        try:
+            return _PACMAN_CONF.read_text(encoding="utf-8")
+        except Exception:
+            return ""
 
-        # ── شريط الحالة ──
-        self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #888; padding: 4px;")
-        layout.addWidget(self.status_label)
+    def _repo_enabled(self, conf_text: str, repo_name: str) -> bool:
+        pattern = rf"^\s*#?\s*\[{re.escape(repo_name)}\]\s*$"
+        for line in conf_text.splitlines():
+            if re.match(pattern, line):
+                return not line.strip().startswith("#")
+        return False
 
     def _reload(self) -> None:
-        """إعادة تحميل الحالة الحالية من pacman.conf."""
-        self._original_conf = _read_pacman_conf()
-        self._current_conf = self._original_conf
-        self.table.setRowCount(len(_CORE_REPOS))
+        conf = self._read_conf()
+        repos = [
+            ("core", "حزم النظام الأساسية"),
+            ("extra", "حزم إضافية"),
+            ("community", "حزم المجتمع"),
+            ("multilib", "دعم البرامج 32-bit"),
+        ]
 
-        for row, repo in enumerate(_CORE_REPOS):
-            enabled = _is_repo_enabled(self._current_conf, repo)
+        self.table.setRowCount(len(repos))
+        for row, (name, desc) in enumerate(repos):
+            self.table.setItem(row, 0, QTableWidgetItem(name))
+            self.table.setItem(row, 1, QTableWidgetItem(desc))
 
-            # اسم المستودع
-            name_item = QTableWidgetItem(repo)
-            name_item.setFont(QFont("", weight=QFont.Bold))
-            self.table.setItem(row, 0, name_item)
-
-            # الحالة
-            status_text = "مفعّل ✔" if enabled else "معطَّل ✘"
-            status_item = QTableWidgetItem(status_text)
-            status_item.setForeground(
-                Qt.green if enabled else Qt.red
+            enabled = self._repo_enabled(conf, name)
+            chk = QCheckBox("مفعّل" if enabled else "معطَّل")
+            chk.setChecked(enabled)
+            chk.setStyleSheet(
+                "QCheckBox { color: #2e7d32; } "
+                "QCheckBox::indicator:checked { background-color: #2e7d32; }"
             )
-            self.table.setItem(row, 1, status_item)
-
-            # Checkbox
-            checkbox = QCheckBox()
-            checkbox.setChecked(enabled)
-            checkbox.stateChanged.connect(
-                lambda state, r=row: self._on_toggle(r, state)
-            )
-            self.table.setCellWidget(row, 2, checkbox)
+            chk.stateChanged.connect(lambda state, n=name: self._on_toggle(n, state == Qt.Checked))
+            self.table.setCellWidget(row, 2, chk)
 
         # AUR helper status
-        aur = _has_aur_helper()
+        aur = None
+        for h in ("yay", "paru", "trizen"):
+            if shutil.which(h):
+                aur = h
+                break
         if aur:
-            self.aur_label.setText(f"✓ AUR helper متوفر: {aur}")
-            self.aur_label.setStyleSheet("color: #4a9; padding: 4px;")
-            self.install_aur_btn.setEnabled(False)
-            self.install_aur_btn.setText("yay مثبت ✓")
+            self.aur_label.setText(f"AUR helper: {aur} ✔")
+            self.yay_btn.setEnabled(False)
+            self.yay_btn.setText("yay ✔")
+            self.paru_btn.setEnabled(False)
+            self.paru_btn.setText("paru ✔")
         else:
-            self.aur_label.setText("✗ لا يوجد AUR helper")
-            self.aur_label.setStyleSheet("color: #a55; padding: 4px;")
-            self.install_aur_btn.setEnabled(True)
+            self.aur_label.setText("لا يوجد AUR helper — ثبّت yay أو paru")
+            self.yay_btn.setEnabled(True)
+            self.paru_btn.setEnabled(True)
 
-        self.status_label.setText("جاهز — عدّل المستودعات ثم اضغط «تطبيق التغييرات».")
-        self.apply_btn.setEnabled(False)  # لا تغييرات بعد
+    def _on_toggle(self, repo_name: str, enable: bool) -> None:
+        self.setEnabled(False)
+        self._toggle_worker = RepoToggleWorker(repo_name, enable, parent=self)
+        self._toggle_worker.finished_ok.connect(self._on_toggle_ok)
+        self._toggle_worker.failed.connect(self._on_toggle_failed)
+        self._toggle_worker.start()
 
-    def _on_toggle(self, row: int, state: int) -> None:
-        """عند تبديل checkbox لمستودع."""
-        repo_name = _CORE_REPOS[row]
-        enable = state == Qt.Checked
+    def _on_toggle_ok(self, msg: str) -> None:
+        self.setEnabled(True)
+        QMessageBox.information(self, "تم", msg)
+        self._reload()
 
-        # تحديث الحالة في الجدول
-        status_item = self.table.item(row, 1)
-        if status_item:
-            status_item.setText("مفعّل ✔" if enable else "معطَّل ✘")
-            status_item.setForeground(Qt.green if enable else Qt.red)
+    def _on_toggle_failed(self, err_text: str) -> None:
+        self.setEnabled(True)
+        QMessageBox.critical(self, "خطأ", err_text)
+        self._reload()
 
-        # تحديث النص الحالي
-        self._current_conf = _toggle_repo_in_conf(
-            self._current_conf, repo_name, enable
-        )
-
-        # تفعيل زر التطبيق
-        changed = self._current_conf != self._original_conf
-        self.apply_btn.setEnabled(changed)
-        if changed:
-            self.status_label.setText(
-                f"تغييرات معلّقة — اضغط «تطبيق التغييرات» للحفظ."
-            )
-        else:
-            self.status_label.setText("لا تغييرات معلّقة.")
-
-    def _apply_changes(self) -> None:
-        """تطبيق التغييرات على pacman.conf عبر pkexec."""
-        if self._current_conf == self._original_conf:
-            QMessageBox.information(self, "لا تغييرات", "لا توجد تغييرات للتطبيق.")
-            return
-
-        # تأكيد
+    def _install_aur(self, helper: str) -> None:
         reply = QMessageBox.question(
-            self,
-            "تأكيد التغييرات",
-            "سيتم تعديل /etc/pacman.conf وإعادة مزامنة pacman.\n"
-            "هل أنت متأكد؟",
+            self, "تأكيد",
+            f"سيتم تثبيت {helper} من AUR.\nهل أنت متأكد؟",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
 
-        self.apply_btn.setEnabled(False)
-        self.apply_btn.setText("جاري التطبيق...")
-        self.status_label.setText("جاري كتابة pacman.conf وإعادة المزامنة...")
-
-        self._apply_worker = _ApplyChangesWorker(self._current_conf)
-        self._apply_worker.finished_signal.connect(self._on_apply_finished)
-        self._apply_worker.start()
-
-    def _on_apply_finished(self, success: bool, message: str) -> None:
-        """عند انتهاء تطبيق التغييرات."""
-        self.apply_btn.setText("تطبيق التغييرات")
-        self.apply_btn.setEnabled(True)
-
-        if success:
-            QMessageBox.information(self, "نجح", message)
-            self._reload()  # إعادة تحميل الحالة الجديدة
-        else:
-            QMessageBox.critical(self, "فشل", message)
-            self.status_label.setText(f"فشل: {message}")
-
-        self._apply_worker = None
-
-    def _install_aur_helper(self) -> None:
-        """تثبيت yay عبر pacman."""
-        reply = QMessageBox.question(
-            self,
-            "تثبيت AUR helper",
-            "سيتم تثبيت yay من المستودعات الرسمية لـ Manjaro.\n"
-            "هل تريد المتابعة؟",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
-            return
-
-        self.install_aur_btn.setEnabled(False)
-        self.install_aur_btn.setText("جاري التثبيت...")
-        self.aur_label.setText("جاري تثبيت yay...")
-        self.aur_label.setStyleSheet("color: #888; padding: 4px;")
-
-        self._aur_worker = _InstallAurHelperWorker()
-        self._aur_worker.finished_signal.connect(self._on_aur_finished)
+        self.setEnabled(False)
+        self._aur_worker = AurInstallWorker(helper, parent=self)
+        self._aur_worker.finished_ok.connect(self._on_aur_ok)
+        self._aur_worker.failed.connect(self._on_aur_failed)
         self._aur_worker.start()
 
-    def _on_aur_finished(self, success: bool, message: str) -> None:
-        """عند انتهاء تثبيت AUR helper."""
-        if success:
-            QMessageBox.information(self, "نجح", message)
-        else:
-            QMessageBox.critical(self, "فشل", message)
+    def _on_aur_ok(self, msg: str) -> None:
+        self.setEnabled(True)
+        QMessageBox.information(self, "تم", msg)
+        self._reload()
 
-        self._reload()  # إعادة تحديث حالة AUR
-        self._aur_worker = None
+    def _on_aur_failed(self, err_text: str) -> None:
+        self.setEnabled(True)
+        QMessageBox.critical(self, "خطأ", err_text)
+        self._reload()
