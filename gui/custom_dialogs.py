@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """gui/custom_dialogs.py — سجل مركزي للنوافذ المخصصة."""
 from __future__ import annotations
-
+from typing import Callable
 from PyQt5.QtWidgets import QDialog
 
 from gui.startup_dialog import StartupManagerDialog
@@ -14,8 +14,9 @@ from gui.uninstaller_dialog import UninstallerDialog
 from gui.game_mode_dialog import GameModeDialog
 from gui.file_shredder_dialog import FileShredderDialog
 from gui.oneclick_dialog import OneClickMaintenanceDialog
+from gui.dashboard_widget import DashboardDialog
 
-_REGISTRY = {
+_REGISTRY: dict[str, Callable[..., QDialog]] = {
     "startup_manager": StartupManagerDialog,
     "boot_sanity": BootSanityDialog,
     "repo_manager": RepoManagerDialog,
@@ -25,8 +26,8 @@ _REGISTRY = {
     "game_mode": GameModeDialog,
     "file_shredder": FileShredderDialog,
     "one_click_maintenance": OneClickMaintenanceDialog,
+    "dashboard": DashboardDialog,
 }
 
-
-def get_custom_dialog(slug: str):
+def get_custom_dialog(slug: str) -> Callable[..., QDialog] | None:
     return _REGISTRY.get(slug)
