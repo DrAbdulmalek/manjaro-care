@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-modules/registry.py
-====================
-نقطة التسجيل المركزية لكل وحدات الصيانة.
-"""
+"""modules/registry.py — نقطة التسجيل المركزية."""
 from __future__ import annotations
 
 from core.module_base import MaintenanceModule
@@ -18,7 +14,7 @@ from modules.kernel_cleanup import KernelCleanupModule
 from modules.disk_analyzer import DiskAnalyzerModule
 from modules.startup_manager import StartupManagerModule
 
-# ── وحدات جديدة مستوحاة من Garuda Assistant ──
+# وحدات جديدة مستوحاة من Garuda Assistant
 from modules.firewall_manager import FirewallManagerModule
 from modules.repo_manager import RepoManagerModule
 from modules.locale_manager import LocaleManagerModule
@@ -34,37 +30,27 @@ from modules.flatpak_cleanup import FlatpakCleanupModule
 from modules.snapper_cleanup import SnapperCleanupModule
 
 
-def get_all_modules() -> list[MaintenanceModule]:
-    """يُرجع نسخة جديدة من كل وحدة مسجّلة، بالترتيب المطلوب عرضه في الواجهة."""
+def get_all_modules():
     return [
-        # ── صحة النظام العامة ──
         SystemInfoModule(),
         NetworkResetModule(),
         FailedServicesModule(),
         FirewallManagerModule(),
-
-        # ── صيانة الحزم والتخزين ──
         PackageCleanupModule(),
         JournalVacuumModule(),
         MirrorRankModule(),
         RepoManagerModule(),
         DiskAnalyzerModule(),
         FlatpakCleanupModule(),
-
-        # ── النواة والتعريفات والإقلاع ──
         KernelCleanupModule(),
         DriverManagerModule(),
         BootManagerModule(),
         BtrfsSnapperModule(),
         BootSanityModule(),
         SnapperCleanupModule(),
-
-        # ── إعدادات النظام ──
         LocaleManagerModule(),
         TimeManagerModule(),
         UserManagerModule(),
         PrinterManagerModule(),
-
-        # ── بدء التشغيل ──
         StartupManagerModule(),
     ]

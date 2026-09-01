@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-modules/firewall_manager.py
-============================
-إدارة الجدار الناري — firewalld أو ufw.
-يعرض الحالة الحالية ويقترح تفعيل/تعطيل أو إضافة قواعد أساسية.
-مستوحى من Garuda Assistant → Firewall.
-"""
+"""modules/firewall_manager.py — إدارة الجدار الناري."""
 from __future__ import annotations
 import shutil
 
@@ -20,8 +14,7 @@ from core.logger import get_logger
 log = get_logger("firewall_manager")
 
 
-def _detect_firewall() -> str | None:
-    """يكتشف أي جدار ناري مثبت: 'firewalld' أو 'ufw' أو None."""
+def _detect_firewall():
     if shutil.which("firewalld") or shutil.which("firewall-cmd"):
         return "firewalld"
     if shutil.which("ufw"):
@@ -29,8 +22,7 @@ def _detect_firewall() -> str | None:
     return None
 
 
-def _firewalld_status() -> tuple[bool, list[str]]:
-    """(نشط؟, قائمة zones المفتوحة)."""
+def _firewalld_status():
     result = run_unprivileged(["systemctl", "is-active", "firewalld"])
     active = result.ok and result.stdout.strip() == "active"
     zones = []
@@ -40,8 +32,7 @@ def _firewalld_status() -> tuple[bool, list[str]]:
     return active, zones
 
 
-def _ufw_status() -> tuple[bool, str]:
-    """(نشط؟, نص الحالة)."""
+def _ufw_status():
     result = run_unprivileged(["ufw", "status", "verbose"])
     active = "Status: active" in result.stdout
     return active, result.stdout
@@ -54,10 +45,11 @@ class FirewallManagerModule(MaintenanceModule):
     needs_root = True
     risk_level = RiskLevel.MODERATE
     icon = "security-high"
+    has_custom_ui = True
 
-    def scan(self) -> ScanResult:
+    def scan(self):
         fw = _detect_firewall()
-        findings: list[ScanFinding] = []
+        findings = []
 
         if not fw:
             findings.append(ScanFinding(
@@ -86,7 +78,7 @@ class FirewallManagerModule(MaintenanceModule):
                     actionable=True,
                     raw_value="firewalld",
                 ))
-        else:  # ufw
+        else:
             active, text = _ufw_status()
             if active:
                 findings.append(ScanFinding(
@@ -107,54 +99,13 @@ class FirewallManagerModule(MaintenanceModule):
 
         return ScanResult(module_name=self.name, findings=findings)
 
-    def preview(self) -> list[PreviewStep]:
-        fw = _detect_firewall()
-        if not fw:
-            return [PreviewStep(description="لا يوجد جدار ناري مثبت — لا إجراء.")]
+    def preview(self):
+        return [PreviewStep(
+            description="إدارة الجدار الناري تتم عبر نافذة مخصصة (زر «إدارة فردية»).",
+        )]
 
-        if fw == "firewalld":
-            active, _ = _firewalld_status()
-            if active:
-                return [PreviewStep(
-                    description="إيقاف firewalld",
-                    command="systemctl stop firewalld",
-                )]
-            return [PreviewStep(
-                description="تشغيل firewalld وتفعيله عند الإقلاع",
-                command="systemctl enable --now firewalld",
-            )]
-        else:
-            active, _ = _ufw_status()
-            if active:
-                return [PreviewStep(description="تعطيل ufw", command="ufw disable")]
-            return [PreviewStep(description="تفعيل ufw", command="ufw enable")]
-
-    def apply(self) -> ApplyResult:
-        fw = _detect_firewall()
-        if not fw:
-            return ApplyResult(success=True, message="لا يوجد جدار ناري مثبت.")
-
-        if fw == "firewalld":
-            active, _ = _firewalld_status()
-            if active:
-                result = run_privileged(["systemctl", "stop", "firewalld"])
-                return ApplyResult(
-                    success=result.ok,
-                    message="تم إيقاف firewalld" if result.ok else f"فشل (كود {result.returncode})",
-                    log_output=result.stdout + result.stderr,
-                )
-            result = run_privileged(["systemctl", "enable", "--now", "firewalld"])
-            return ApplyResult(
-                success=result.ok,
-                message="تم تفعيل firewalld" if result.ok else f"فشل (كود {result.returncode})",
-                log_output=result.stdout + result.stderr,
-            )
-        else:
-            active, _ = _ufw_status()
-            cmd = "disable" if active else "enable"
-            result = run_privileged(["ufw", "--force", cmd])
-            return ApplyResult(
-                success=result.ok,
-                message=f"تم {cmd} ufw" if result.ok else f"فشل (كود {result.returncode})",
-                log_output=result.stdout + result.stderr,
-            )
+    def apply(self):
+        return ApplyResult(
+            success=True,
+            message="استخدم زر «إدارة فردية» للتحكم بالجدار الناري.",
+        )
