@@ -20,6 +20,7 @@ from modules.repo_manager import RepoManagerModule
 from modules.locale_manager import LocaleManagerModule
 from modules.time_manager import TimeManagerModule
 from modules.boot_sanity import BootSanityModule
+from modules.boot_sanity import BootSanityModule
 from modules.boot_manager import BootManagerModule
 from modules.system_info import SystemInfoModule
 from modules.driver_manager import DriverManagerModule
@@ -46,6 +47,7 @@ def get_all_modules():
         DriverManagerModule(),
         BootManagerModule(),
         BtrfsSnapperModule(),
+        BootSanityModule(),
         BootSanityModule(),
         SnapperCleanupModule(),
         LocaleManagerModule(),
