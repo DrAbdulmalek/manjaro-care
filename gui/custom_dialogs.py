@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""gui/custom_dialogs.py — سجل مركزي للنوافذ المخصصة.
-
-6 نوافذ مخصصة:
-  1. StartupManagerDialog — برامج بدء التشغيل
-  2. BootSanityDialog — فحص الإقلاع
-  3. RepoManagerDialog — مستودعات pacman
-  4. FirewallManagerDialog — الجدار الناري
-  5. BootManagerDialog — إدارة GRUB
-  6. UninstallerDialog — إلغاء تثبيت البرامج (IObit-style)
-"""
+"""gui/custom_dialogs.py — سجل مركزي للنوافذ المخصصة."""
 from __future__ import annotations
-from typing import Callable
 
 from PyQt5.QtWidgets import QDialog
 
@@ -21,6 +11,7 @@ from gui.repo_dialog import RepoManagerDialog
 from gui.firewall_dialog import FirewallManagerDialog
 from gui.boot_dialog import BootManagerDialog
 from gui.uninstaller_dialog import UninstallerDialog
+from gui.game_mode_dialog import GameModeDialog
 
 _REGISTRY = {
     "startup_manager": StartupManagerDialog,
@@ -29,8 +20,9 @@ _REGISTRY = {
     "firewall_manager": FirewallManagerDialog,
     "boot_manager": BootManagerDialog,
     "app_uninstaller": UninstallerDialog,
+    "game_mode": GameModeDialog,
 }
 
 
-def get_custom_dialog(slug: str) -> Callable[..., QDialog] | None:
+def get_custom_dialog(slug: str):
     return _REGISTRY.get(slug)
