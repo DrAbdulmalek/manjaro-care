@@ -12,6 +12,8 @@ from gui.firewall_dialog import FirewallManagerDialog
 from gui.boot_dialog import BootManagerDialog
 from gui.uninstaller_dialog import UninstallerDialog
 from gui.game_mode_dialog import GameModeDialog
+from gui.file_shredder_dialog import FileShredderDialog
+from gui.oneclick_dialog import OneClickMaintenanceDialog
 
 _REGISTRY = {
     "startup_manager": StartupManagerDialog,
@@ -21,6 +23,8 @@ _REGISTRY = {
     "boot_manager": BootManagerDialog,
     "app_uninstaller": UninstallerDialog,
     "game_mode": GameModeDialog,
+    "file_shredder": FileShredderDialog,
+    "one_click_maintenance": OneClickMaintenanceDialog,
 }
 
 
