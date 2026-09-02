@@ -67,7 +67,7 @@ class OneClickMaintenanceModule(MaintenanceModule):
             PreviewStep(description="2. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
             PreviewStep(description="3. تنظيف cache pacman", command="paccache -rk2"),
             PreviewStep(description="4. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
-            PreviewStep(description="5. fstrim", command="fstrim -av /"),
+            PreviewStep(description="5. fstrim", command="fstrim -v /"),
             PreviewStep(description="6. تحديث قاعدة البيانات", command="pacman -Sy"),
         ]
 
@@ -94,7 +94,7 @@ class OneClickMaintenanceModule(MaintenanceModule):
             logs.append(r.stdout[:200] if r.stdout else "📦 Flatpak: تم")
 
         # 5. fstrim
-        r = run_privileged(["fstrim", "-av", "/"])
+        r = run_privileged(["fstrim", "-v", "/"])
         logs.append(r.stdout[:200] if r.stdout else "💿 fstrim: تم")
 
         # 6. sync
