@@ -85,7 +85,7 @@ class DiskOptimizerModule(MaintenanceModule):
         if fstype in ("ext4", "btrfs", "xfs"):
             steps.append(PreviewStep(
                 description="تشغيل fstrim يدوياً",
-                command="fstrim -av /",
+                command="fstrim -v /",
             ))
         steps.append(PreviewStep(
             description="تفعيل fstrim التلقائي",
@@ -95,7 +95,7 @@ class DiskOptimizerModule(MaintenanceModule):
 
     def apply(self):
         logs = []
-        r1 = run_privileged(["fstrim", "-av", "/"])
+        r1 = run_privileged(["fstrim", "-v", "/"])
         logs.append(r1.stdout + r1.stderr)
 
         r2 = run_privileged(["systemctl", "enable", "--now", "fstrim.timer"])

@@ -50,6 +50,7 @@ class ScanResult:
     module_name: str
     findings: list[ScanFinding] = field(default_factory=list)
     error: str | None = None       # إن فشل الفحص نفسه (صلاحيات، أداة غير مثبتة...)
+    raw_value: object = None      # قيمة خام إضافية (مثل قائمة التوصيات)
 
     @property
     def worst_severity(self) -> Severity:

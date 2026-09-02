@@ -26,7 +26,11 @@ def _grub_entries() -> list[str]:
     """يستخرج أسماء إدخالات GRUB من grub.cfg."""
     if not _GRUB_CFG.exists():
         return []
-    text = _GRUB_CFG.read_text(encoding="utf-8", errors="ignore")
+    try:
+        text = _GRUB_CFG.read_text(encoding="utf-8", errors="ignore")
+    except PermissionError:
+        log.warning("لا توجد صلاحيات كافية لقراءة /boot/grub/grub.cfg")
+        return []
     entries = []
     for line in text.splitlines():
         if line.strip().startswith("menuentry '"):
@@ -40,7 +44,12 @@ def _grub_timeout() -> int:
     """يقرأ timeout من /etc/default/grub."""
     if not _GRUB_DEFAULT.exists():
         return -1
-    for line in _GRUB_DEFAULT.read_text().splitlines():
+    try:
+        text = _GRUB_DEFAULT.read_text()
+    except PermissionError:
+        log.warning("لا توجد صلاحيات كافية لقراءة /etc/default/grub")
+        return -1
+    for line in text.splitlines():
         if line.strip().startswith("GRUB_TIMEOUT="):
             try:
                 return int(line.split("=", 1)[1].strip().strip('"'))

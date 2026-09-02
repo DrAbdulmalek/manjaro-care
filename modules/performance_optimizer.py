@@ -3,6 +3,7 @@
 """modules/performance_optimizer.py — تحسين أداء النظام (TuneUp Utilities)."""
 from __future__ import annotations
 import shutil
+from pathlib import Path
 from core.module_base import (
     MaintenanceModule, ScanResult, ScanFinding, Severity,
     PreviewStep, ApplyResult, RiskLevel,

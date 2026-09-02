@@ -54,7 +54,7 @@ def run_unprivileged(args: list[str], timeout: int = 30) -> CommandResult:
         return CommandResult(124, "", "timeout")
 
 
-def run_privileged(args: list[str], timeout: int = 120) -> CommandResult:
+def run_privileged(args: list[str], timeout: int = 300) -> CommandResult:
     """
     تنفيذ أمر بصلاحيات جذر عبر pkexec. يفتح نافذة مصادقة polkit
     الرسومية (نفس ما اعتاده المستخدم من تطبيقات KDE الأخرى).
