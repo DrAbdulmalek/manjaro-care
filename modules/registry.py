@@ -47,6 +47,7 @@ from modules.file_shredder import FileShredderModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
 from modules.dashboard import DashboardModule
 from modules.tcp_optimizer import TcpOptimizerModule
+from modules.ssd_care import SSDCareModule
 
 
 def get_all_modules():
@@ -75,6 +76,7 @@ def get_all_modules():
         PerformanceOptimizerModule(),
         RamBoosterModule(),
         DiskOptimizerModule(),
+        SSDCareModule(),
         TcpOptimizerModule(),
         KernelCleanupModule(),
         
