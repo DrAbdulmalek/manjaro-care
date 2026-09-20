@@ -28,6 +28,7 @@ from modules.driver_manager import DriverManagerModule
 from modules.btrfs_snapper import BtrfsSnapperModule
 from modules.snapshot_before_update import SnapshotBeforeUpdateModule
 from modules.update_check import UpdateCheckModule
+from modules.btrfs_health import BtrfsHealthModule
 from modules.printer_manager import PrinterManagerModule
 from modules.user_manager import UserManagerModule
 from modules.flatpak_cleanup import FlatpakCleanupModule
@@ -68,6 +69,7 @@ def get_all_modules():
         SnapperCleanupModule(),
         SnapshotBeforeUpdateModule(),  # لقطة pre-update + رجوع (نافذة مخصصة)
         UpdateCheckModule(),  # إخبارية: pacnew + مزامنة + خدمات فاشلة + أخبار
+        BtrfsHealthModule(),  # صحة btrfs + scrub/fstrim (نافذة مخصصة)
         
         # إدارة البرامج
         AppUninstallerModule(),
