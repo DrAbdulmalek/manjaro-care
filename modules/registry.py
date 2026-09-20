@@ -29,6 +29,7 @@ from modules.btrfs_snapper import BtrfsSnapperModule
 from modules.snapshot_before_update import SnapshotBeforeUpdateModule
 from modules.update_check import UpdateCheckModule
 from modules.btrfs_health import BtrfsHealthModule
+from modules.report_export import ReportExportModule
 from modules.printer_manager import PrinterManagerModule
 from modules.user_manager import UserManagerModule
 from modules.flatpak_cleanup import FlatpakCleanupModule
@@ -60,6 +61,7 @@ def get_all_modules():
         SystemInfoModule(),
         OneClickMaintenanceModule(),
         StartupImpactModule(),
+        ReportExportModule(),  # تقرير منقّى (نافذة معاينة مخصصة)
         
         # التنظيف والصيانة
         SystemCleanerModule(),

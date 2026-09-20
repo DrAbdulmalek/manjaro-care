@@ -18,6 +18,7 @@ from gui.dashboard_widget import DashboardDialog
 from gui.snapshot_dialog import SnapshotDialog
 from gui.update_check_dialog import UpdateCheckDialog
 from gui.btrfs_health_dialog import BtrfsHealthDialog
+from gui.report_export_dialog import ReportExportDialog
 
 _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "startup_manager": StartupManagerDialog,
@@ -33,6 +34,7 @@ _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "snapshot_before_update": SnapshotDialog,
     "update_check": UpdateCheckDialog,
     "btrfs_health": BtrfsHealthDialog,
+    "report_export": ReportExportDialog,
 }
 
 def get_custom_dialog(slug: str) -> Callable[..., QDialog] | None:
