@@ -5,18 +5,29 @@ gui/game_mode_dialog.py — وضع الألعاب (مستوحى من Razer Corte
 يقوم بتعليق العمليات غير الضرورية، تفعيل gamemode، وتغيير governor إلى performance.
 """
 from __future__ import annotations
+
 import shutil
+
 import psutil
-
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
-    QGroupBox, QCheckBox, QProgressBar, QTextEdit,
-)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+)
 
-from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("game_mode_dialog")
 

@@ -115,7 +115,7 @@ class TestScan:
         assert any("SMART لـ /dev/sda" in f.title for f in result.findings)
 
     def test_scrub_errors_critical(self):
-        with _healthy_env() as ctx, \
+        with _healthy_env(), \
              patch.object(bh, "run_unprivileged", side_effect=[
                  CommandResult(0, "btrfs\n", ""),       # FSTYPE
                  CommandResult(0, SCRUB_ERRORS, ""),    # scrub status

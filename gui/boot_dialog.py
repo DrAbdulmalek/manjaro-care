@@ -17,19 +17,32 @@ gui/boot_dialog.py — نافذة مخصصة لإدارة الإقلاع (GRUB).
 كل التعديلات تمر عبر pkexec (polkit) ولا تجمد الواجهة (QThread).
 """
 from __future__ import annotations
+
 import re
 from pathlib import Path
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
-    QSpinBox, QGroupBox, QFormLayout, QLineEdit, QCheckBox,
-    QComboBox, QFileDialog,
-)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
 
-from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
+from core.privilege import run_privileged
 
 log = get_logger("boot_dialog")
 

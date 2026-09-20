@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import (
 from core.logger import get_logger
 from core.privilege import run_privileged
 from gui.workers import FunctionWorker
-from modules.btrfs_health import parse_scrub_status
 
 log = get_logger("btrfs_health_dialog")
 

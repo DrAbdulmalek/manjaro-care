@@ -160,7 +160,7 @@ def build_report_text() -> str:
         f"- التاريخ: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"- النواة: {redact_text(platform.release(), username, hostname)}",
         f"- النظام: {redact_text(' '.join(platform.uname()), username, hostname)}",
-        f"- مُولَّد من: manjaro-care وحدة report_export",
+        "- مُولَّد من: manjaro-care وحدة report_export",
         "- التنقيح: أسماء المستخدمين/الجهاز، IP/MAC، الأرقام التسلسلية، مسارات home",
         "",
     ]

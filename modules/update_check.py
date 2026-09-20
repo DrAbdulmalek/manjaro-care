@@ -24,7 +24,6 @@ import os
 import re
 import time
 import urllib.request
-from pathlib import Path
 from xml.etree import ElementTree
 
 from core.logger import get_logger

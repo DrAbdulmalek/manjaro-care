@@ -2,14 +2,21 @@
 # -*- coding: utf-8 -*-
 """modules/performance_optimizer.py — تحسين أداء النظام (TuneUp Utilities)."""
 from __future__ import annotations
+
 import shutil
 from pathlib import Path
+
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_privileged, run_unprivileged
-from core.logger import get_logger
 
 log = get_logger("performance_optimizer")
 
@@ -183,8 +190,8 @@ class PerformanceOptimizerModule(MaintenanceModule):
             # إنشاء ملف الإعداد
             zram_conf = "/etc/systemd/zram-generator.conf"
             conf_text = "[zram0]\nzram-size = ram / 2\ncompression-algorithm = zstd\n"
-            r1b = run_privileged(["bash", "-c", f"cat > {zram_conf} << 'EOF'\n{conf_text}EOF"])
-            r1c = run_privileged(["systemctl", "daemon-reload"])
+            run_privileged(["bash", "-c", f"cat > {zram_conf} << 'EOF'\n{conf_text}EOF"])
+            run_privileged(["systemctl", "daemon-reload"])
             r1d = run_privileged(["systemctl", "start", "systemd-zram-setup@zram0"])
             if not r1d.ok:
                 success = False

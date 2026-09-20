@@ -10,18 +10,24 @@ Advanced SystemCare)، وتحته قائمة قابلة للتمرير من بط
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame,
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.scanner import run_full_scan, SystemHealthReport
 from core.logger import get_logger, log_file_path
-from modules.registry import get_all_modules
+from core.scanner import SystemHealthReport, run_full_scan
 from gui.module_card import ModuleCard
 from gui.workers import FunctionWorker
+from modules.registry import get_all_modules
 
 log = get_logger("main_window")
 
@@ -139,7 +145,7 @@ class MainWindow(QMainWindow):
 
         # حدّث كل بطاقة بنتيجتها الخاصة دون طلب فحص جديد منها (نتفادى
         # تشغيل نفس الفحص مرتين)
-        for card, result in zip(self.cards, report.results):
+        for card, result in zip(self.cards, report.results, strict=False):
             card._last_scan = result
             card._render_scan_result(result)
             has_actionable = any(f.actionable for f in result.findings)

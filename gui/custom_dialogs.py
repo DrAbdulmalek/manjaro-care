@@ -2,23 +2,25 @@
 # -*- coding: utf-8 -*-
 """gui/custom_dialogs.py — سجل مركزي للنوافذ المخصصة."""
 from __future__ import annotations
+
 from typing import Callable
+
 from PyQt5.QtWidgets import QDialog
 
-from gui.startup_dialog import StartupManagerDialog
-from gui.boot_sanity_dialog import BootSanityDialog
-from gui.repo_dialog import RepoManagerDialog
-from gui.firewall_dialog import FirewallManagerDialog
 from gui.boot_dialog import BootManagerDialog
-from gui.uninstaller_dialog import UninstallerDialog
-from gui.game_mode_dialog import GameModeDialog
-from gui.file_shredder_dialog import FileShredderDialog
-from gui.oneclick_dialog import OneClickMaintenanceDialog
-from gui.dashboard_widget import DashboardDialog
-from gui.snapshot_dialog import SnapshotDialog
-from gui.update_check_dialog import UpdateCheckDialog
+from gui.boot_sanity_dialog import BootSanityDialog
 from gui.btrfs_health_dialog import BtrfsHealthDialog
+from gui.dashboard_widget import DashboardDialog
+from gui.file_shredder_dialog import FileShredderDialog
+from gui.firewall_dialog import FirewallManagerDialog
+from gui.game_mode_dialog import GameModeDialog
+from gui.oneclick_dialog import OneClickMaintenanceDialog
+from gui.repo_dialog import RepoManagerDialog
 from gui.report_export_dialog import ReportExportDialog
+from gui.snapshot_dialog import SnapshotDialog
+from gui.startup_dialog import StartupManagerDialog
+from gui.uninstaller_dialog import UninstallerDialog
+from gui.update_check_dialog import UpdateCheckDialog
 
 _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "startup_manager": StartupManagerDialog,

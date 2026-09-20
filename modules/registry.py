@@ -3,55 +3,53 @@
 """modules/registry.py — نقطة التسجيل المركزية."""
 from __future__ import annotations
 
-from core.module_base import MaintenanceModule
-
-# الوحدات الأصلية
-from modules.network_reset import NetworkResetModule
-from modules.pkg_cleanup import PackageCleanupModule
-from modules.failed_services import FailedServicesModule
-from modules.journal_vacuum import JournalVacuumModule
-from modules.mirror_rank import MirrorRankModule
-from modules.kernel_cleanup import KernelCleanupModule
-from modules.disk_analyzer import DiskAnalyzerModule
-from modules.startup_manager import StartupManagerModule
-
-# وحدات Garuda-style
-from modules.firewall_manager import FirewallManagerModule
-from modules.repo_manager import RepoManagerModule
-from modules.locale_manager import LocaleManagerModule
-from modules.time_manager import TimeManagerModule
-from modules.boot_sanity import BootSanityModule
-from modules.boot_manager import BootManagerModule
-from modules.boot_guard import BootGuardModule
-from modules.system_info import SystemInfoModule
-from modules.driver_manager import DriverManagerModule
-from modules.btrfs_snapper import BtrfsSnapperModule
-from modules.snapshot_before_update import SnapshotBeforeUpdateModule
-from modules.update_check import UpdateCheckModule
-from modules.btrfs_health import BtrfsHealthModule
-from modules.report_export import ReportExportModule
-from modules.printer_manager import PrinterManagerModule
-from modules.user_manager import UserManagerModule
-from modules.flatpak_cleanup import FlatpakCleanupModule
-from modules.snapper_cleanup import SnapperCleanupModule
-
-# 🆕 وحدات CCleaner / TuneUp / ASC / IObit
-from modules.system_cleaner import SystemCleanerModule
-from modules.privacy_guard import PrivacyGuardModule
-from modules.performance_optimizer import PerformanceOptimizerModule
 from modules.app_uninstaller import AppUninstallerModule
+from modules.boot_guard import BootGuardModule
+from modules.boot_manager import BootManagerModule
+from modules.boot_sanity import BootSanityModule
+from modules.btrfs_health import BtrfsHealthModule
+from modules.btrfs_snapper import BtrfsSnapperModule
+from modules.dashboard import DashboardModule
+from modules.disk_analyzer import DiskAnalyzerModule
+from modules.disk_optimizer import DiskOptimizerModule
+from modules.driver_manager import DriverManagerModule
 
 # 🆕 وحدات جديدة مستوحاة من أفضل برامج الويندوز 2026
 from modules.duplicate_finder import DuplicateFinderModule
-from modules.large_file_finder import LargeFileFinderModule
-from modules.startup_impact import StartupImpactModule
-from modules.software_updater import SoftwareUpdaterModule
-from modules.disk_optimizer import DiskOptimizerModule
-from modules.ram_booster import RamBoosterModule
+from modules.failed_services import FailedServicesModule
 from modules.file_shredder import FileShredderModule
+
+# وحدات Garuda-style
+from modules.firewall_manager import FirewallManagerModule
+from modules.flatpak_cleanup import FlatpakCleanupModule
+from modules.journal_vacuum import JournalVacuumModule
+from modules.kernel_cleanup import KernelCleanupModule
+from modules.large_file_finder import LargeFileFinderModule
+from modules.locale_manager import LocaleManagerModule
+from modules.mirror_rank import MirrorRankModule
+
+# الوحدات الأصلية
+from modules.network_reset import NetworkResetModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
-from modules.dashboard import DashboardModule
+from modules.performance_optimizer import PerformanceOptimizerModule
+from modules.pkg_cleanup import PackageCleanupModule
+from modules.printer_manager import PrinterManagerModule
+from modules.ram_booster import RamBoosterModule
+from modules.repo_manager import RepoManagerModule
+from modules.report_export import ReportExportModule
+from modules.snapper_cleanup import SnapperCleanupModule
+from modules.snapshot_before_update import SnapshotBeforeUpdateModule
+from modules.software_updater import SoftwareUpdaterModule
+from modules.startup_impact import StartupImpactModule
+from modules.startup_manager import StartupManagerModule
+
+# 🆕 وحدات CCleaner / TuneUp / ASC / IObit
+from modules.system_cleaner import SystemCleanerModule
+from modules.system_info import SystemInfoModule
 from modules.tcp_optimizer import TcpOptimizerModule
+from modules.time_manager import TimeManagerModule
+from modules.update_check import UpdateCheckModule
+from modules.user_manager import UserManagerModule
 
 
 def get_all_modules():
@@ -62,7 +60,7 @@ def get_all_modules():
         OneClickMaintenanceModule(),
         StartupImpactModule(),
         ReportExportModule(),  # تقرير منقّى (نافذة معاينة مخصصة)
-        
+
         # التنظيف والصيانة
         SystemCleanerModule(),
         PackageCleanupModule(),
@@ -72,30 +70,30 @@ def get_all_modules():
         SnapshotBeforeUpdateModule(),  # لقطة pre-update + رجوع (نافذة مخصصة)
         UpdateCheckModule(),  # إخبارية: pacnew + مزامنة + خدمات فاشلة + أخبار
         BtrfsHealthModule(),  # صحة btrfs + scrub/fstrim (نافذة مخصصة)
-        
+
         # إدارة البرامج
         AppUninstallerModule(),
         SoftwareUpdaterModule(),
         DuplicateFinderModule(),
         LargeFileFinderModule(),
-        
+
         # الأداء والتحسين
         PerformanceOptimizerModule(),
         RamBoosterModule(),
         DiskOptimizerModule(),
         TcpOptimizerModule(),
         KernelCleanupModule(),
-        
+
         # الألعاب
         # game_mode لا يوجد له وحدة — نافذة مخصصة فقط
-        
+
         # الحماية والخصوصية
         # ملاحظة: PrivacyGuardModule كانت تُنشأ مرتين (هنا وفي قسم التنظيف
         # أعلاه) فتظهر بطاقتها مرتين وتُفحص مرتين في "الفحص الشامل" —
         # أُبقي الوجود في قسم الحماية والخصوصية فقط.
         FirewallManagerModule(),
         FileShredderModule(),
-        
+
         # الإعدادات
         BootManagerModule(),
         BootGuardModule(),  # الأعلى أولوية: حارس انزلاق الإقلاع على btrfs (حساس)
@@ -105,13 +103,13 @@ def get_all_modules():
         LocaleManagerModule(),
         TimeManagerModule(),
         NetworkResetModule(),
-        
+
         # العتاد والمعلومات
         DriverManagerModule(),
         DiskAnalyzerModule(),
         BtrfsSnapperModule(),
         BootSanityModule(),
-        
+
         # الخدمات والمستخدمين
         FailedServicesModule(),
         UserManagerModule(),

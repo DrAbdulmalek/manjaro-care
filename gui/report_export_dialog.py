@@ -5,11 +5,17 @@
 المسموح (لا تعديل أي شيء آخر في النظام)."""
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
-    QMessageBox, QFileDialog,
-)
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from core.logger import get_logger
 from modules.report_export import build_report_text, default_report_path

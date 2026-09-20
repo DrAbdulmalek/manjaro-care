@@ -292,7 +292,6 @@ class BtrfsHealthModule(MaintenanceModule):
         # الإجراءات تنفَّذ من النافذة المخصصة (تأكيد منفصل لكل إجراء).
         # المسار القياسي هنا يعمل أيضاً إن استُدعي — ينفذ ما "يلزم فعله"
         # فقط: scrub إن لم يكن جارياً، وتفعيل fstrim إن كان معطلاً.
-        from core.runtime import is_dry_run
 
         if is_dry_run():
             plan = "\n".join(

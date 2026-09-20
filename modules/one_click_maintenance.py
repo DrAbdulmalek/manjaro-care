@@ -2,13 +2,20 @@
 # -*- coding: utf-8 -*-
 """modules/one_click_maintenance.py — صيانة بنقرة واحدة تجمع كل شيء."""
 from __future__ import annotations
+
 import shutil
+
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_privileged, run_unprivileged
-from core.logger import get_logger
 
 log = get_logger("one_click_maintenance")
 

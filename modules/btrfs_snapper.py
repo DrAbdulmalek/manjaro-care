@@ -8,14 +8,20 @@ modules/btrfs_snapper.py
 مستوحى من Garuda Assistant → BTRFS Assistant / Snapper.
 """
 from __future__ import annotations
+
 import shutil
 
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_unprivileged
-from core.logger import get_logger
 
 log = get_logger("btrfs_snapper")
 

@@ -33,7 +33,7 @@ from core.module_base import (
     ScanResult,
     Severity,
 )
-from core.privilege import run_privileged, run_unprivileged
+from core.privilege import run_privileged
 from core.runtime import is_dry_run
 
 log = get_logger("snapper_cleanup")

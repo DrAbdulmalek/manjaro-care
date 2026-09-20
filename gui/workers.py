@@ -24,6 +24,7 @@ Responding): استدعاء subprocess.run() مباشرة داخل خيط Qt ا�
 """
 
 from __future__ import annotations
+
 from typing import Any, Callable
 
 from PyQt5.QtCore import QThread, pyqtSignal

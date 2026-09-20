@@ -17,14 +17,19 @@ Wise Care 365 — أخضر=سليم، أصفر=تنبيه، أحمر=حرج.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QMessageBox, QTextEdit, QSizePolicy,
-)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 
-from core.module_base import MaintenanceModule, Severity, ScanResult
+from core.module_base import MaintenanceModule, ScanResult, Severity
 from gui.workers import FunctionWorker
 
 _SEVERITY_COLORS = {

@@ -4,20 +4,30 @@
 gui/uninstaller_dialog.py — نافذة إلغاء التثبيت القوي (مستوحاة من IObit Uninstaller).
 """
 from __future__ import annotations
-import shutil
-import re
-from typing import List, Tuple
 
+from typing import List
+
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QtGui
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit,
-    QMessageBox, QCheckBox, QProgressBar, QGroupBox, QSplitter,
-    QTextEdit, QAbstractItemView,
+    QAbstractItemView,
+    QCheckBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
 
-from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("uninstaller_dialog")
 
@@ -238,7 +248,7 @@ class UninstallerDialog(QDialog):
             filtered.append((name, ver, size, desc, explicit, is_orphan))
 
         self.table.setRowCount(len(filtered))
-        for row, (name, ver, size, desc, explicit, is_orphan) in enumerate(filtered):
+        for row, (name, ver, size, _desc, explicit, is_orphan) in enumerate(filtered):
             chk = QCheckBox()
             self.table.setCellWidget(row, 0, chk)
 

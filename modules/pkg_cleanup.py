@@ -16,12 +16,17 @@ modules/pkg_cleanup.py
 
 from __future__ import annotations
 
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_unprivileged, run_privileged
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("pkg_cleanup")
 

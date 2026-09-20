@@ -13,10 +13,11 @@ SystemCare في إعطاء "لمحة صحة سريعة" عند فتح التطب
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 
-from core.module_base import MaintenanceModule, ScanResult, Severity
 from core.logger import get_logger
+from core.module_base import MaintenanceModule, ScanResult, Severity
 
 log = get_logger("scanner")
 

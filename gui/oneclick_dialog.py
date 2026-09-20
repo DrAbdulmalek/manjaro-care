@@ -6,22 +6,37 @@ gui/oneclick_dialog.py — صيانة بنقرة واحدة (One-Click Maintenan
 ⏰ يدعم الجدولة التلقائية عبر systemd timer.
 """
 from __future__ import annotations
-import shutil
+
 import re
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
+from PyQt5.QtCore import Qt, QThread, QTime, pyqtSignal
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QMessageBox,
-    QProgressBar, QTextEdit, QGroupBox, QFormLayout,
-    QComboBox, QSpinBox, QCheckBox, QTimeEdit, QTabWidget,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTabWidget,
+    QTextEdit,
+    QTimeEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
     QWidget,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTime
 
-from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("oneclick_dialog")
 
@@ -50,7 +65,6 @@ class OneClickWorker(QThread):
         self._cancelled = True
 
     def run(self):
-        logs = []
         completed = 0
 
         for task in self.tasks:
@@ -286,7 +300,7 @@ WantedBy=timers.target
 """
 
         # محتوى الـ service
-        service_content = f"""[Unit]
+        service_content = """[Unit]
 Description=Manjaro Care One-Click Maintenance
 [Service]
 Type=oneshot
@@ -301,7 +315,7 @@ ExecStart=/usr/bin/env python3 -m manjaro_care --oneclick
             QMessageBox.critical(self, "خطأ", "فشل كتابة ملفات systemd.")
             return
 
-        r3 = run_privileged(["systemctl", "daemon-reload"])
+        run_privileged(["systemctl", "daemon-reload"])
         r4 = run_privileged(["systemctl", "enable", "--now", self.TIMER_NAME])
 
         if r4.ok:
@@ -319,8 +333,8 @@ ExecStart=/usr/bin/env python3 -m manjaro_care --oneclick
         if reply != QMessageBox.Yes:
             return
 
-        r1 = run_privileged(["systemctl", "disable", "--now", self.TIMER_NAME])
-        r2 = run_privileged(["rm", "-f", self.TIMER_PATH, self.SERVICE_PATH])
+        run_privileged(["systemctl", "disable", "--now", self.TIMER_NAME])
+        run_privileged(["rm", "-f", self.TIMER_PATH, self.SERVICE_PATH])
         r3 = run_privileged(["systemctl", "daemon-reload"])
 
         if r3.ok:
@@ -469,7 +483,6 @@ ExecStart=/usr/bin/env python3 -m manjaro_care --oneclick
         return True
 
     def _check_tmp(self) -> bool:
-        import os
         tmp = Path("/tmp")
         if not tmp.exists():
             return False
@@ -505,5 +518,5 @@ ExecStart=/usr/bin/env python3 -m manjaro_care --oneclick
         return r.ok, r.stdout[:200] or "تم"
 
     def _fix_tmp(self) -> tuple[bool, str]:
-        r = run_privileged(["bash", "-c", "find /tmp -type f -atime +3 -delete 2>/dev/null || true"])
+        run_privileged(["bash", "-c", "find /tmp -type f -atime +3 -delete 2>/dev/null || true"])
         return True, "تم تنظيف /tmp"

@@ -13,19 +13,31 @@ gui/snapshot_dialog.py
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
-    QTableWidgetItem, QMessageBox, QTextEdit, QSpinBox, QGroupBox, QHeaderView,
-)
 from PyQt5.QtCore import Qt
-
-from core.privilege import run_privileged
-from core.logger import get_logger
-from gui.workers import FunctionWorker
-from modules.snapshot_before_update import (
-    SNAPSHOT_TAG, detect_tool, list_snapshots,
+from PyQt5.QtWidgets import (
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
 )
+
+from core.logger import get_logger
+from core.privilege import run_privileged
+from gui.workers import FunctionWorker
 from modules.snapper_cleanup import read_keep_count, write_keep_count
+from modules.snapshot_before_update import (
+    SNAPSHOT_TAG,
+    detect_tool,
+    list_snapshots,
+)
 
 log = get_logger("snapshot_dialog")
 
