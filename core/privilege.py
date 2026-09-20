@@ -19,6 +19,7 @@ import subprocess
 from dataclasses import dataclass
 
 from core.logger import get_logger
+from core.runtime import is_dry_run
 
 log = get_logger("privilege")
 
@@ -58,7 +59,19 @@ def run_privileged(args: list[str], timeout: int = 300) -> CommandResult:
     """
     تنفيذ أمر بصلاحيات جذر عبر pkexec. يفتح نافذة مصادقة polkit
     الرسومية (نفس ما اعتاده المستخدم من تطبيقات KDE الأخرى).
+
+    وضع dry-run (core/runtime.py): عند تفعيله لا يُنفَّذ هذا الأمر
+    إطلاقاً — تُرجع الدالة نتيجة موسومة [DRY-RUN] دون لمس النظام.
+    هذا صمام أمان أخير (طبقة 3)؛ الواجهة تعطّل apply أصلاً والوحدات
+    الجيدة تفحص is_dry_run() بنفسها وتُرجع رسالة صادقة قبل الوصول
+    إلى هنا. الفحص قبل فحص توفر pkexec كي يعمل dry-run حتى بلا
+    polkit مثبت (بيئات CI مثلاً).
     """
+    if is_dry_run():
+        msg = "[DRY-RUN] لم يُنفَّذ: " + " ".join(args)
+        log.info(msg)
+        return CommandResult(0, msg, "")
+
     if not _pkexec_available():
         msg = "الأداة pkexec غير مثبتة — مطلوبة لتنفيذ أي إجراء بصلاحيات جذر."
         log.error(msg)
