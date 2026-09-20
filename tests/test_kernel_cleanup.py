@@ -11,6 +11,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from core.module_base import Severity
+from core.privilege import CommandResult
 from modules import kernel_cleanup as kc
 from modules.kernel_cleanup import KernelCleanupModule
 
@@ -20,11 +21,11 @@ def _patch_system(uname_release: str | None, installed: list[str]):
     def fake_run_unprivileged(args, timeout=30):
         if args == ["uname", "-r"]:
             if uname_release is None:
-                return kc.CommandResult(1, "", "no uname")
-            return kc.CommandResult(0, uname_release + "\n", "")
+                return CommandResult(1, "", "no uname")
+            return CommandResult(0, uname_release + "\n", "")
         if args == ["pacman", "-Qq"]:
-            return kc.CommandResult(0, "\n".join(installed) + "\n", "")
-        return kc.CommandResult(1, "", "mock miss")
+            return CommandResult(0, "\n".join(installed) + "\n", "")
+        return CommandResult(1, "", "mock miss")
     return patch.object(kc, "run_unprivileged", side_effect=fake_run_unprivileged)
 
 
@@ -56,16 +57,17 @@ class TestNeverDeleteRunningKernel:
             removable = module._compute_removable(
                 ["linux54", "linux61", "linux66"], "linux66")
         assert "linux66" not in removable  # العاملة
-        assert "linux61" not in removable  # الأحدث
-        assert removable == ["linux54"]
+        assert removable == ["linux54", "linux61"]  # القديمتان فقط
 
     def test_running_older_than_newest_still_kept(self):
-        """حتى لو كانت العاملة أقدم من الأحدث — لا تُحذف أبداً."""
+        """حتى لو كانت العاملة أقدم من الأحدث — الاثنتان محفوظتان،
+        والوسطى (linux61) وحدها قابلة للإزالة."""
         with _patch_system("5.15.0-1-MANJARO", ["linux515", "linux61", "linux66"]):
             removable = KernelCleanupModule()._compute_removable(
                 ["linux515", "linux61", "linux66"], "linux515")
-        assert "linux515" not in removable
-        assert removable == []
+        assert "linux515" not in removable  # العاملة
+        assert "linux66" not in removable   # الأحدث
+        assert removable == ["linux61"]
 
     def test_removable_empty_when_running_unknown(self):
         assert KernelCleanupModule()._compute_removable(
@@ -85,13 +87,14 @@ class TestNeverDeleteRunningKernel:
         with _patch_system("6.6.10-1-MANJARO", ["linux54", "linux61", "linux66"]), \
              patch.object(kc, "run_privileged",
                           side_effect=lambda a, timeout=300: calls.append(a)
-                          or kc.CommandResult(0, "ok", "")):
+                          or CommandResult(0, "ok", "")):
             result = KernelCleanupModule().apply()
         called = calls[0]
         assert called[0:3] == ["pacman", "-Rns", "--noconfirm"]
+        # العاملة = الأحدث هنا (linux66) — تبقى؛ القديمتان تُحذفان مع headers
         assert "linux66" not in called and "linux66-headers" not in called
-        assert "linux61" not in called  # الأحدث تبقى
         assert "linux54" in called and "linux54-headers" in called
+        assert "linux61" in called and "linux61-headers" in called
         assert result.success
 
     def test_scan_not_actionable_when_running_unknown(self):
@@ -104,3 +107,26 @@ class TestNeverDeleteRunningKernel:
         with _patch_system("6.6.10-1-MANJARO", ["linux66"]):
             result = KernelCleanupModule().scan()
         assert result.findings[0].severity == Severity.OK
+
+
+class TestVersionOrdering:
+    """إصلاح خلل حقيقي: المقارنة المدموجة كانت تجعل 5.15 (515) "أحدث"
+    من 6.6 (66) — فتُحمى النواة الخاطئة."""
+
+    def test_66_is_newer_than_515(self):
+        assert kc._kernel_version_key("linux66") > kc._kernel_version_key("linux515")
+
+    def test_manjaro_naming_convention(self):
+        assert kc._kernel_version_key("linux515") == (5, 15)
+        assert kc._kernel_version_key("linux419") == (4, 19)
+        assert kc._kernel_version_key("linux66") == (6, 6)
+        assert kc._kernel_version_key("linux61") == (6, 1)
+        assert kc._kernel_version_key("linux612") == (6, 12)
+
+    def test_newest_protected_after_fix(self):
+        """الحالة التي كانت تُحذف فيها 6.6 مع حماية 5.15 خطأً."""
+        module = KernelCleanupModule()
+        removable = module._compute_removable(
+            ["linux515", "linux61", "linux66"], "linux515")
+        assert "linux66" not in removable  # الأحدث فعلاً محمية الآن
+        assert removable == ["linux61"]
