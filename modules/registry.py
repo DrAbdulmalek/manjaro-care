@@ -22,6 +22,7 @@ from modules.locale_manager import LocaleManagerModule
 from modules.time_manager import TimeManagerModule
 from modules.boot_sanity import BootSanityModule
 from modules.boot_manager import BootManagerModule
+from modules.boot_guard import BootGuardModule
 from modules.system_info import SystemInfoModule
 from modules.driver_manager import DriverManagerModule
 from modules.btrfs_snapper import BtrfsSnapperModule
@@ -89,6 +90,7 @@ def get_all_modules():
         
         # الإعدادات
         BootManagerModule(),
+        BootGuardModule(),  # الأعلى أولوية: حارس انزلاق الإقلاع على btrfs (حساس)
         StartupManagerModule(),
         RepoManagerModule(),
         MirrorRankModule(),

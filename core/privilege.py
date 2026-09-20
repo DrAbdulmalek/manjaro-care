@@ -14,6 +14,7 @@ polkit يعطي مصادقة رسومية واحدة والمستخدم يبقى
 """
 
 from __future__ import annotations
+
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -44,7 +45,7 @@ def run_unprivileged(args: list[str], timeout: int = 30) -> CommandResult:
     log.debug("تنفيذ أمر عادي: %s", " ".join(args))
     try:
         proc = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout
+            args, capture_output=True, text=True, timeout=timeout, check=False
         )
         return CommandResult(proc.returncode, proc.stdout, proc.stderr)
     except FileNotFoundError as e:
@@ -81,7 +82,7 @@ def run_privileged(args: list[str], timeout: int = 300) -> CommandResult:
     log.info("تنفيذ أمر مرتفع الصلاحية: %s", " ".join(args))
     try:
         proc = subprocess.run(
-            full_cmd, capture_output=True, text=True, timeout=timeout
+            full_cmd, capture_output=True, text=True, timeout=timeout, check=False
         )
         if proc.returncode == 0:
             log.info("نجح: %s", " ".join(args))

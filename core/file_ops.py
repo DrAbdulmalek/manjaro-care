@@ -25,12 +25,13 @@ core/file_ops.py
 """
 
 from __future__ import annotations
+
 import os
 import tempfile
 from datetime import datetime
 
-from core.privilege import run_privileged
 from core.logger import get_logger
+from core.privilege import run_privileged
 
 log = get_logger("file_ops")
 
@@ -44,7 +45,7 @@ def backup_root_file(path: str) -> str | None:
     if not os.path.isfile(path):
         log.warning("لا نسخة احتياطية: الملف غير موجود %s", path)
         return None
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     backup_path = f"{path}.bak-manjaro-care-{stamp}"
     result = run_privileged(["cp", "-a", "--", path, backup_path])
     if not result.ok:
