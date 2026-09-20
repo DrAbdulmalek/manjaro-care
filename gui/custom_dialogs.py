@@ -15,6 +15,7 @@ from gui.game_mode_dialog import GameModeDialog
 from gui.file_shredder_dialog import FileShredderDialog
 from gui.oneclick_dialog import OneClickMaintenanceDialog
 from gui.dashboard_widget import DashboardDialog
+from gui.snapshot_dialog import SnapshotDialog
 
 _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "startup_manager": StartupManagerDialog,
@@ -27,6 +28,7 @@ _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "file_shredder": FileShredderDialog,
     "one_click_maintenance": OneClickMaintenanceDialog,
     "dashboard": DashboardDialog,
+    "snapshot_before_update": SnapshotDialog,
 }
 
 def get_custom_dialog(slug: str) -> Callable[..., QDialog] | None:
