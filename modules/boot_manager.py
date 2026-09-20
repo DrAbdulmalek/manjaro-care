@@ -7,6 +7,7 @@ modules/boot_manager.py
 مستوحى من Garuda Assistant → Boot Options.
 """
 from __future__ import annotations
+import re
 from pathlib import Path
 
 from core.module_base import (
@@ -108,15 +109,12 @@ class BootManagerModule(MaintenanceModule):
     def preview(self) -> list[PreviewStep]:
         timeout = _grub_timeout()
         steps = []
-        if timeout == 0:
+        if timeout == 0 or timeout > 30:
+            # التنفيذ الفعلي يتم من Python (نسخة احتياطية + كتابة آمنة عبر
+            # core/file_ops.py) ثم grub-mkconfig — نعرض الخطوات كما ستحدث.
             steps.append(PreviewStep(
-                description="تعيين GRUB_TIMEOUT إلى 5 ثوانٍ",
-                command="sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=5/' /etc/default/grub && grub-mkconfig -o /boot/grub/grub.cfg",
-            ))
-        elif timeout > 30:
-            steps.append(PreviewStep(
-                description="تعيين GRUB_TIMEOUT إلى 5 ثوانٍ",
-                command="sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=5/' /etc/default/grub && grub-mkconfig -o /boot/grub/grub.cfg",
+                description=f"تعيين GRUB_TIMEOUT إلى 5 ثوانٍ في {_GRUB_DEFAULT} (مع نسخة احتياطية)",
+                command="GRUB_TIMEOUT=5  # تعديل سطر واحد فقط ثم:",
             ))
         steps.append(PreviewStep(
             description="إعادة توليد إعدادات GRUB",
@@ -129,8 +127,34 @@ class BootManagerModule(MaintenanceModule):
         logs = []
 
         if timeout == 0 or timeout > 30:
-            r1 = run_privileged(["bash", "-c", "sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=5/' /etc/default/grub"])
-            logs.append(r1.stdout + r1.stderr)
+            # تعديل GRUB_TIMEOUT من Python مباشرة (argv فقط — بلا shell):
+            # نقرأ الملف، نستبدل سطر GRUB_TIMEOUT وحده، نحفظ عبر
+            # core/file_ops.py (نسخة احتياطية + كتابة آمنة) ثم grub-mkconfig.
+            try:
+                content = _GRUB_DEFAULT.read_text(encoding="utf-8", errors="ignore")
+            except OSError as exc:
+                return ApplyResult(success=False, message=f"تعذّرت قراءة {_GRUB_DEFAULT}: {exc}")
+
+            new_content, n_subs = re.subn(
+                r"^GRUB_TIMEOUT=.*$", "GRUB_TIMEOUT=5", content,
+                count=1, flags=re.MULTILINE,
+            )
+            if n_subs == 0:
+                # لا يوجد سطر GRUB_TIMEOUT أصلاً — نضيفه بعد آخر سطر إعداد
+                new_content = content.rstrip("\n") + "\nGRUB_TIMEOUT=5\n"
+
+            from core.file_ops import backup_root_file, write_root_file
+
+            backup = backup_root_file(str(_GRUB_DEFAULT))
+            if backup is None:
+                return ApplyResult(
+                    success=False,
+                    message=f"فشل إنشاء نسخة احتياطية من {_GRUB_DEFAULT} — لن نُعدّل دون نسخة احتياطية.",
+                )
+            ok, err = write_root_file(str(_GRUB_DEFAULT), new_content)
+            if not ok:
+                return ApplyResult(success=False, message=f"فشل تعديل GRUB_TIMEOUT: {err}")
+            logs.append(f"GRUB_TIMEOUT -> 5 (نسخة احتياطية: {backup})")
 
         r2 = run_privileged(["grub-mkconfig", "-o", "/boot/grub/grub.cfg"])
         logs.append(r2.stdout + r2.stderr)

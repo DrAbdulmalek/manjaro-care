@@ -324,13 +324,22 @@ class BootSanityModule(MaintenanceModule):
                             line = line.rstrip()[:-1] + ' rootflags=subvol=@"'
                 modified.append(line)
             new_content = "\n".join(modified)
-            tmp_path = "/tmp/grub_default_modified"
-            with open(tmp_path, "w") as f:
-                f.write(new_content)
-            cp_result = run_privileged(["cp", tmp_path, grub_default])
-            os.unlink(tmp_path)
-            if not cp_result.ok:
-                return ApplyResult(success=False, message=f"فشل تحديث /etc/default/grub: {cp_result.stderr}")
+            if content.endswith("\n"):
+                new_content += "\n"  # preserve original trailing newline
+            # كتابة آمنة عبر core/file_ops.py — الإصلاح يعالج ثغرة أمنية
+            # كانت في نسخة سابقة: مسار ثابت متوقع في /tmp يسمح لمستخدم
+            # محلي بهجوم symlink تستهدف النسخ بصلاحيات root عبر pkexec.
+            # نأخذ نسخة احتياطية أولاً أيضاً (كانت مفقودة هنا).
+            from core.file_ops import backup_root_file, write_root_file
+
+            if backup_root_file(grub_default) is None:
+                return ApplyResult(
+                    success=False,
+                    message=f"فشل إنشاء نسخة احتياطية من {grub_default} — لن نُعدّل دون نسخة احتياطية.",
+                )
+            ok, err = write_root_file(grub_default, new_content)
+            if not ok:
+                return ApplyResult(success=False, message=f"فشل تحديث {grub_default}: {err}")
 
         # 2) إعادة توليد grub.cfg
         result = run_privileged(["grub-mkconfig", "-o", "/boot/grub/grub.cfg"])

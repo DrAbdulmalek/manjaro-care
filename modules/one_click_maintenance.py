@@ -63,21 +63,31 @@ class OneClickMaintenanceModule(MaintenanceModule):
 
     def preview(self):
         return [
-            PreviewStep(description="1. تنظيف الحزم اليتيمة", command="pacman -Rns $(pacman -Qdtq) --noconfirm"),
+            PreviewStep(description="1. تنظيف الحزم اليتيمة", command="pacman -Rns <قائمة pacman -Qdtq> --noconfirm"),
             PreviewStep(description="2. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
             PreviewStep(description="3. تنظيف cache pacman", command="paccache -rk2"),
             PreviewStep(description="4. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
             PreviewStep(description="5. fstrim", command="fstrim -v /"),
-            PreviewStep(description="6. تحديث قاعدة البيانات", command="pacman -Sy"),
+            # تنبيه: كانت المعاينة هنا تعرض "pacman -Sy" بينما التنفيذ الفعلي
+            # هو sync (تفريغ مخازن النظام) — صُحّحت المعاينة لتطابق التنفيذ.
+            # pacman -Sy بدون -u (تحديث جزئي) لا يُنفَّذ هنا عمداً.
+            PreviewStep(description="6. تفريغ مخازن الكتابة في القرص", command="sync"),
         ]
 
     def apply(self):
         logs = []
         success = True
 
-        # 1. حزم يتيمة
-        r = run_privileged(["bash", "-c", "pacman -Rns $(pacman -Qdtq) --noconfirm 2>/dev/null || true"])
-        logs.append("🗑️ الحزم اليتيمة: " + (r.stdout[:200] if r.stdout else "تم"))
+        # 1. حزم يتيمة — الحذف عبر argv صريح بلا shell: نجلب قائمة الحزم
+        # اليتيمة بأنفسنا ثم نمررها عناصر منفصلة (كانت سابقاً $(pacman -Qdtq)
+        # داخل bash -c — توسعة shell غير ضرورية وتخالف قاعدة argv-only).
+        orphans_r = run_unprivileged(["pacman", "-Qdtq"])
+        orphans = orphans_r.stdout.split() if orphans_r.ok else []
+        if orphans:
+            r = run_privileged(["pacman", "-Rns", "--noconfirm", *orphans])
+            logs.append("🗑️ الحزم اليتيمة: " + (r.stdout[:200] if r.stdout else "تم"))
+        else:
+            logs.append("🗑️ الحزم اليتيمة: لا توجد حزم يتيمة")
 
         # 2. journal
         r = run_privileged(["journalctl", "--vacuum-time=7d"])

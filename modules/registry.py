@@ -59,7 +59,6 @@ def get_all_modules():
         
         # التنظيف والصيانة
         SystemCleanerModule(),
-        PrivacyGuardModule(),
         PackageCleanupModule(),
         FlatpakCleanupModule(),
         JournalVacuumModule(),
@@ -82,8 +81,10 @@ def get_all_modules():
         # game_mode لا يوجد له وحدة — نافذة مخصصة فقط
         
         # الحماية والخصوصية
+        # ملاحظة: PrivacyGuardModule كانت تُنشأ مرتين (هنا وفي قسم التنظيف
+        # أعلاه) فتظهر بطاقتها مرتين وتُفحص مرتين في "الفحص الشامل" —
+        # أُبقي الوجود في قسم الحماية والخصوصية فقط.
         FirewallManagerModule(),
-        PrivacyGuardModule(),
         FileShredderModule(),
         
         # الإعدادات
