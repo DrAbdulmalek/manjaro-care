@@ -57,7 +57,12 @@ def test_scan_reports_missing_pacman_prerequisites(monkeypatch):
         "pacman-mirrors": None,
     }.get(name))
     monkeypatch.setattr(pacman_maintenance, "_pacman_running", lambda: False)
-    monkeypatch.setattr(pacman_maintenance.LOCK, "exists", lambda: False)
+    class MissingPath:
+        def exists(self):
+            return False
+
+    monkeypatch.setattr(pacman_maintenance, "LOCK", MissingPath())
+    monkeypatch.setattr(pacman_maintenance, "MIRRORLIST", MissingPath())
     monkeypatch.setattr(pacman_maintenance, "_empty_community_section", lambda: False)
 
     result = pacman_maintenance.PacmanMaintenanceModule().scan()
