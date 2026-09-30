@@ -24,7 +24,7 @@ jobs:
       - name: Bash syntax check
         run: |
           FAIL=0
-          for f in install.sh uninstall.sh manjaro-care; do
+          for f in install.sh uninstall.sh; do
             if bash -n "$f" 2>&1; then
               echo "OK: $f"
             else
@@ -32,6 +32,13 @@ jobs:
               FAIL=1
             fi
           done
+          # نقطة الدخول manjaro-care سكربت بايثون — فحص صياغتها بـ py_compile وليس bash -n
+          if python3 -m py_compile manjaro-care 2>&1; then
+            echo "OK: manjaro-care (python)"
+          else
+            echo "FAIL: manjaro-care (python)"
+            FAIL=1
+          fi
           exit $FAIL
 
       - name: Python AST check

@@ -44,6 +44,8 @@ jobs:
 
       - name: Bash syntax check (existing lint.yml complement)
         run: |
-          for f in install.sh uninstall.sh manjaro-care; do
+          for f in install.sh uninstall.sh; do
             bash -n "$f"
           done
+          # نقطة الدخول manjaro-care سكربت بايثون (وليست bash) — فحصها الصحيح هنا
+          python3 -m py_compile manjaro-care
