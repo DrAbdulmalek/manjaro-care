@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
 from core.logger import get_logger
 from core.privilege import run_unprivileged
 from core.runtime import is_dry_run
+from gui.workers import BusyCloseGuardMixin
 from modules.pdf_toolkit import (
     build_img2pdf_cmd,
     build_ocrmypdf_cmd,
@@ -62,13 +63,14 @@ class CmdWorker(QThread):
                               ("تم" if r.ok else f"فشل (رمز {r.returncode})"))
 
 
-class PdfToolkitDialog(QDialog):
+class PdfToolkitDialog(BusyCloseGuardMixin, QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("📄 حقيبة أدوات PDF")
         self.resize(640, 520)
         self.setLayoutDirection(Qt.RightToLeft)
         self._worker = None
+        self._images: list[Path] = []   # مهيّأة فوراً — الضغط قبل الاختيار يُعالج كتنبيه لا انهيار
         self._avail = tools_availability()
         self._build_ui()
 
@@ -216,6 +218,13 @@ class PdfToolkitDialog(QDialog):
 
     # ---------------- التنفيذ ----------------
 
+    def _required_out(self, text: str) -> Path | None:
+        """يمنع بناء أمر بمسار ناتج فارغ (Path("") = "." — خطأ غامض لاحقاً)."""
+        if not text.strip():
+            QMessageBox.warning(self, "تنبيه", "حدّد ملف الناتج أولاً.")
+            return None
+        return Path(text.strip())
+
     def _start(self, cmd: list[str]):
         self.setEnabled(False)
         self.progress.setVisible(True)
@@ -225,17 +234,30 @@ class PdfToolkitDialog(QDialog):
         self._worker.start()
 
     def _run_images_to_pdf(self):
+        if not self._images:
+            QMessageBox.warning(self, "تنبيه", "اختر صورة واحدة على الأقل أولاً.")
+            return
+        out = self._required_out(self.imgpdf_out.text())
+        if out is None:
+            return
         try:
-            cmd = build_img2pdf_cmd(self._images, Path(self.imgpdf_out.text()))
+            cmd = build_img2pdf_cmd(self._images, out)
         except ValueError as exc:
             QMessageBox.warning(self, "تنبيه", str(exc))
             return
         self._start(cmd)
 
     def _run_ocr(self):
+        src_text = self.ocr_src.text().strip()
+        if not src_text:
+            QMessageBox.warning(self, "تنبيه", "اختر ملف PDF الأصلي أولاً.")
+            return
+        out = self._required_out(self.ocr_out.text())
+        if out is None:
+            return
         try:
             cmd = build_ocrmypdf_cmd(
-                Path(self.ocr_src.text()), Path(self.ocr_out.text()),
+                Path(src_text), out,
                 lang=self.ocr_lang.currentText())
         except ValueError as exc:
             QMessageBox.warning(self, "تنبيه", str(exc))
@@ -243,9 +265,15 @@ class PdfToolkitDialog(QDialog):
         self._start(cmd)
 
     def _run_text_extract(self):
+        src_text = self.txt_src.text().strip()
+        if not src_text:
+            QMessageBox.warning(self, "تنبيه", "اختر ملف PDF أولاً.")
+            return
+        out = self._required_out(self.txt_out.text())
+        if out is None:
+            return
         try:
-            cmd = build_text_extract_cmd(
-                Path(self.txt_src.text()), Path(self.txt_out.text()))
+            cmd = build_text_extract_cmd(Path(src_text), out)
         except ValueError as exc:
             QMessageBox.warning(self, "تنبيه", str(exc))
             return
