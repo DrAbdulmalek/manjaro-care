@@ -24,7 +24,7 @@ jobs:
       - name: Bash syntax check
         run: |
           FAIL=0
-          for f in install.sh uninstall.sh manjaro-care scripts/manjaro-maintenance.sh; do
+          for f in install.sh uninstall.sh scripts/manjaro-maintenance.sh; do
             if bash -n "$f" 2>&1; then
               echo "OK: $f"
             else
@@ -54,7 +54,7 @@ jobs:
       - name: Check no trailing whitespace in shell scripts
         run: |
           FAIL=0
-          for f in install.sh uninstall.sh manjaro-care; do
+          for f in install.sh uninstall.sh scripts/manjaro-maintenance.sh; do
             if grep -rn '[[:space:]]$' "$f" 2>/dev/null; then
               echo "WARN: trailing whitespace in $f"
             fi
