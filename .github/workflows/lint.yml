@@ -19,12 +19,12 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm bash python
+          pacman -S --noconfirm bash python python-pytest
 
       - name: Bash syntax check
         run: |
           FAIL=0
-          for f in install.sh uninstall.sh manjaro-care; do
+          for f in install.sh uninstall.sh manjaro-care scripts/manjaro-maintenance.sh; do
             if bash -n "$f" 2>&1; then
               echo "OK: $f"
             else
@@ -33,6 +33,10 @@ jobs:
             fi
           done
           exit $FAIL
+
+      - name: Pacman maintenance unit tests
+        run: |
+          pytest -q tests/test_pacman_maintenance.py
 
       - name: Python AST check
         run: |
