@@ -6,6 +6,7 @@ gui/game_mode_dialog.py — وضع الألعاب (مستوحى من Razer Corte
 """
 from __future__ import annotations
 
+import shlex
 import shutil
 import subprocess
 
@@ -33,6 +34,7 @@ from PyQt5.QtWidgets import (
 from core.logger import get_logger
 from core.privilege import run_privileged, run_unprivileged
 from core.runtime import is_dry_run
+from gui.workers import BusyCloseGuardMixin
 from modules.gamescope_hdr import build_gamescope_cmd, gamescope_available
 
 log = get_logger("game_mode_dialog")
@@ -109,7 +111,7 @@ class GamescopeLaunchWorker(QThread):
             self.failed.emit(str(exc))
 
 
-class GameModeDialog(QDialog):
+class GameModeDialog(BusyCloseGuardMixin, QDialog):
     # العمليات الشائعة التي يمكن تعليقها أثناء اللعب
     DEFAULT_SUSPENDABLE = [
         ("firefox", "Firefox 🦊"),
@@ -130,6 +132,9 @@ class GameModeDialog(QDialog):
         self.resize(600, 640)
         self.setLayoutDirection(Qt.RightToLeft)
         self._worker = None
+        self._gs_worker = None
+        # حارس الإغلاق يفحص العاملين معاً (GameMode + Gamescope)
+        self._GUARD_ATTRS = ("_worker", "_gs_worker")
         self._is_active = False
         self._build_ui()
         self._check_status()
@@ -266,9 +271,15 @@ class GameModeDialog(QDialog):
         return g
 
     def _launch_gamescope(self):
-        game_cmd = self.gs_cmd.text().split()
-        if not game_cmd:
+        raw = self.gs_cmd.text().strip()
+        if not raw:
             QMessageBox.warning(self, "تنبيه", "اكتب أمر اللعبة أولاً.")
+            return
+        try:
+            # shlex يحفظ المسارات المقتبسة: 'game "My Dir/x.sh"' تُحلّل صحيحة
+            game_cmd = shlex.split(raw)
+        except ValueError as exc:
+            QMessageBox.warning(self, "تنبيه", f"أمر غير صالح: {exc}")
             return
         try:
             cmd = build_gamescope_cmd(
@@ -279,20 +290,31 @@ class GameModeDialog(QDialog):
         except ValueError as exc:
             QMessageBox.warning(self, "تنبيه", str(exc))
             return
+        # تعطيل الزر حتى تتم الإطلاقة — يمنع نقرة مزدوجة → عمليتين
+        self.gs_launch_btn.setEnabled(False)
         self._gs_worker = GamescopeLaunchWorker(cmd, parent=self)
-        self._gs_worker.started_ok.connect(
-            lambda pid: QMessageBox.information(
-                self, "أُطلقت", f"اللعبة تعمل داخل gamescope (PID {pid})."))
-        self._gs_worker.failed.connect(lambda e: QMessageBox.critical(self, "خطأ", e))
+        self._gs_worker.started_ok.connect(self._on_gs_started)
+        self._gs_worker.failed.connect(self._on_gs_failed)
         self._gs_worker.start()
 
+    def _on_gs_started(self, pid: int):
+        self.gs_launch_btn.setEnabled(True)
+        QMessageBox.information(
+            self, "أُطلقت", f"اللعبة تعمل داخل gamescope (PID {pid}).")
+
+    def _on_gs_failed(self, err: str):
+        self.gs_launch_btn.setEnabled(True)
+        QMessageBox.critical(self, "خطأ", err)
+
     def _check_status(self):
-        # التحقق من حالة gamemoded
-        r = run_unprivileged(["systemctl", "is-active", "gamemoded"])
+        # التحقق من حالة gamemoded (مهلة قصيرة — فحص واجهة لا يجوز أن يعلّق)
+        r = run_unprivileged(["systemctl", "is-active", "gamemoded"], timeout=5)
         self._is_active = r.ok and "active" in r.stdout
 
         # CPU governor
-        gov_r = run_unprivileged(["cat", "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"])
+        gov_r = run_unprivileged(
+            ["cat", "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"],
+            timeout=5)
         governor = gov_r.stdout.strip() if gov_r.ok else "غير معروف"
 
         status = f"GameMode: {'🟢 نشط' if self._is_active else '🔴 متوقف'} | CPU Governor: {governor}"

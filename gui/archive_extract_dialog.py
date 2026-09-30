@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
 
 from core.logger import get_logger
 from core.runtime import is_dry_run
+from gui.workers import BusyCloseGuardMixin
 from modules.archive_extract import (
     COMMON_ARCHIVE_EXTS,
     ExtractionOutcome,
@@ -68,7 +69,7 @@ class ExtractWorker(QThread):
         self.all_done.emit(ok, bad)
 
 
-class ArchiveExtractDialog(QDialog):
+class ArchiveExtractDialog(BusyCloseGuardMixin, QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("📦 الاستخراج الآمن للأرشيفات")
@@ -135,11 +136,19 @@ class ArchiveExtractDialog(QDialog):
     def _pick_archives(self):
         files, _ = QFileDialog.getOpenFileNames(
             self, "اختيار أرشيفات", str(Path.home() / "Downloads"), _ARCHIVE_FILTER)
+        skipped = 0
         for f in files:
             path = Path(f)
             if path.suffix.lower() not in COMMON_ARCHIVE_EXTS:
+                skipped += 1
                 continue
-            plan = plan_extraction(path)
+            try:
+                plan = plan_extraction(path)
+            except Exception as exc:  # ملف تالف/غير قابل للتحليل — نبقي الباقي
+                log.warning("تعذّر تحليل %s: %s", path, exc)
+                QMessageBox.warning(
+                    self, "تنبيه", f"تعذّر تحليل «{path.name}»: {exc}")
+                continue
             row = self.table.rowCount()
             self.table.insertRow(row)
             item = QTableWidgetItem(plan.archive.name)
@@ -151,6 +160,11 @@ class ArchiveExtractDialog(QDialog):
                 target_item.setText(f"{plan.target_dir.name} (موجود — سيُتخطى)")
             self.table.setItem(row, 2, target_item)
             self.table.setItem(row, 3, QTableWidgetItem("بانتظار التنفيذ"))
+        if skipped:
+            QMessageBox.information(
+                self, "ملاحظة",
+                f"تم تجاهل {skipped} ملفاً بامتداد غير مدعوم "
+                f"(المسموح: {', '.join(sorted(COMMON_ARCHIVE_EXTS))}).")
 
     def _run(self):
         plans, rows = [], []

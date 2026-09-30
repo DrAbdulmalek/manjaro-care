@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
 
 from core.runtime import is_dry_run
 from gui.pdf_toolkit_dialog import CmdWorker  # عامل التنفيذ العام المشترك
+from gui.workers import BusyCloseGuardMixin
 from modules.font_toolkit import (
     QUICK_RANGES,
     build_merge_cmd,
@@ -37,7 +38,7 @@ from modules.font_toolkit import (
 )
 
 
-class FontToolkitDialog(QDialog):
+class FontToolkitDialog(BusyCloseGuardMixin, QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("🔤 حقيبة أدوات الخطوط")
@@ -164,7 +165,7 @@ class FontToolkitDialog(QDialog):
     def _pick_ttx_font(self):
         f, _ = QFileDialog.getOpenFileName(
             self, "اختيار خط أو XML", str(Path.home()),
-            "خطوط وXML (*.ttf *.otf *.ttf *.woff *.woff2 *.ttx *.xml)")
+            "خطوط وXML (*.ttf *.otf *.woff *.woff2 *.ttx *.xml)")
         self.ttx_font.setText(f)
 
     def _pick_sub_font(self):
@@ -218,12 +219,19 @@ class FontToolkitDialog(QDialog):
         self._start(cmd)
 
     def _run_subset(self):
+        if not self.sub_font.text().strip():
+            QMessageBox.warning(self, "تنبيه", "اختر الخط المصدر أولاً.")
+            return
+        out_text = self.sub_out.text().strip()
+        if not out_text:
+            QMessageBox.warning(self, "تنبيه", "حدّد ملف الخط الناتج أولاً.")
+            return
         custom = self.sub_custom.text().strip()
         unicodes = custom or QUICK_RANGES[self.sub_range.currentText()]
         flavor = self.sub_flavor.currentText()
         try:
             cmd = build_subset_cmd(
-                self.sub_font.text(), self.sub_out.text(),
+                self.sub_font.text().strip(), out_text,
                 unicodes=unicodes,
                 flavor=None if flavor == "ttf" else flavor)
         except ValueError as exc:
@@ -232,9 +240,13 @@ class FontToolkitDialog(QDialog):
         self._start(cmd)
 
     def _run_merge(self):
+        out_text = self.merge_out.text().strip()
+        if not out_text:
+            QMessageBox.warning(self, "تنبيه", "حدّد ملف الدمج الناتج أولاً.")
+            return
         try:
             cmd = build_merge_cmd([str(p) for p in self._merge_paths],
-                                  self.merge_out.text())
+                                  out_text)
         except ValueError as exc:
             QMessageBox.warning(self, "تنبيه", str(exc))
             return
