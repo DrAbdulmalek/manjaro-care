@@ -9,6 +9,7 @@ from core.module_base import (
 )
 from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
+from modules.pacman_maintenance import PacmanMaintenanceModule
 
 log = get_logger("one_click_maintenance")
 
@@ -23,7 +24,12 @@ class OneClickMaintenanceModule(MaintenanceModule):
 
     def scan(self):
         findings = []
-        # نقوم بفحص سريع لكل الوحدات الفرعية
+        # اجعل الفحص الشامل يعكس بوابة Pacman نفسها، حتى لا يظهر
+        # "النظام سليم" بينما سيؤدي apply() إلى التوقف بسبب مشكلة Pacman.
+        pacman_scan = PacmanMaintenanceModule().scan()
+        findings.extend(pacman_scan.findings)
+
+        # نقوم بفحص سريع لبقية الوحدات الفرعية
         checks = []
 
         # 1. حزم يتيمة
@@ -51,7 +57,8 @@ class OneClickMaintenanceModule(MaintenanceModule):
                 severity=Severity.WARNING,
                 actionable=True,
             ))
-        else:
+
+        if not findings:
             findings.append(ScanFinding(
                 title="النظام في حالة ممتازة ✅",
                 detail="لا توجد مهام صيانة مطلوبة.",
@@ -63,17 +70,25 @@ class OneClickMaintenanceModule(MaintenanceModule):
 
     def preview(self):
         return [
-            PreviewStep(description="1. تنظيف الحزم اليتيمة", command="pacman -Rns $(pacman -Qdtq) --noconfirm"),
-            PreviewStep(description="2. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
-            PreviewStep(description="3. تنظيف cache pacman", command="paccache -rk2"),
-            PreviewStep(description="4. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
-            PreviewStep(description="5. fstrim", command="fstrim -v /"),
-            PreviewStep(description="6. تحديث قاعدة البيانات", command="pacman -Sy"),
+            PreviewStep(description="1. فحص/إصلاح قفل pacman وإعداد المستودعات عند الحاجة", command="pacman-guard: no active pacman; remove stale db.lck only after fuser check"),
+            PreviewStep(description="2. تحديث المرايا", command="pacman-mirrors --fasttrack 5"),
+            PreviewStep(description="3. مزامنة قواعد البيانات وترقية النظام", command="pacman -Syu"),
+            PreviewStep(description="4. تنظيف الحزم اليتيمة", command="pacman -Rns $(pacman -Qdtq) --noconfirm"),
+            PreviewStep(description="5. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
+            PreviewStep(description="6. تنظيف cache pacman", command="paccache -rk2"),
+            PreviewStep(description="7. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
+            PreviewStep(description="8. fstrim", command="fstrim -v /"),
         ]
 
     def apply(self):
         logs = []
         success = True
+
+        # Pacman guard + mirror refresh + full system update first.
+        pm = PacmanMaintenanceModule().apply()
+        logs.append("🛠️ Pacman: " + pm.message + "\n" + pm.log_output)
+        if not pm.success:
+            return ApplyResult(False, "توقفت الصيانة قبل التنظيف لأن صيانة Pacman لم تنجح.", "\n".join(logs))
 
         # 1. حزم يتيمة
         r = run_privileged(["bash", "-c", "pacman -Rns $(pacman -Qdtq) --noconfirm 2>/dev/null || true"])

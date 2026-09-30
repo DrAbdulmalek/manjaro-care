@@ -6,7 +6,7 @@ pkgdesc="Graphical system maintenance center for Manjaro/Arch Linux — click in
 arch=('any')
 url="https://github.com/DrAbdulmalek/manjaro-care"
 license=('MIT')
-depends=('python-pyqt5' 'polkit' 'pacman' 'python')
+depends=('python-pyqt5' 'polkit' 'pacman' 'python' 'psmisc')
 optdepends=(
     'pacman-contrib: لـ paccache (تنظيف الكاش)'
     'pacman-mirrors: لترتيب المرايا حسب السرعة'
@@ -27,7 +27,8 @@ package() {
     # ملفات المشروع + سكربت الدخول نفسه (مصدر وحيد، مطابق لما يستخدمه
     # install.sh — يحدد موقعه تلقائياً عبر __file__)
     install -dm755 "$pkgdir/opt/manjaro-care"
-    cp -r core modules gui "$pkgdir/opt/manjaro-care/"
+    cp -r core modules gui scripts "$pkgdir/opt/manjaro-care/"
+    chmod 755 "$pkgdir/opt/manjaro-care/scripts/manjaro-maintenance.sh"
     install -Dm755 manjaro-care "$pkgdir/opt/manjaro-care/manjaro-care"
 
     # نقطة دخول رفيعة في /usr/bin تستدعي الملف أعلاه

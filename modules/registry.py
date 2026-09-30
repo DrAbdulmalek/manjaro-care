@@ -45,6 +45,7 @@ from modules.disk_optimizer import DiskOptimizerModule
 from modules.ram_booster import RamBoosterModule
 from modules.file_shredder import FileShredderModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
+from modules.pacman_maintenance import PacmanMaintenanceModule
 from modules.dashboard import DashboardModule
 from modules.tcp_optimizer import TcpOptimizerModule
 
@@ -54,6 +55,7 @@ def get_all_modules():
         # معلومات وصيانة سريعة
         DashboardModule(),
         SystemInfoModule(),
+        PacmanMaintenanceModule(),
         OneClickMaintenanceModule(),
         StartupImpactModule(),
         
