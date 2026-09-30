@@ -106,6 +106,13 @@ def _fmt_gb(n: int) -> str:
     return f"{n / 1024 ** 3:.1f} GB"
 
 
+def _statvfs_root() -> tuple[int, int]:
+    """(المتاح، الإجمالي) لنظام الملفات الجذر — مغلّف هنا ليُسخّر في
+    اختبارات _healthy_env بدل قراءة القرص الحقيقي لآلة التشغيل."""
+    st = os.statvfs("/")
+    return st.f_bavail * st.f_frsize, st.f_blocks * st.f_frsize
+
+
 # ---------------------------------------------------------------------------
 # الوحدة
 # ---------------------------------------------------------------------------
@@ -171,9 +178,7 @@ class BtrfsHealthModule(MaintenanceModule):
 
         # 2) الاستخدام الحقيقي — statvfs بلا أوامر؛ تفصيل metadata يتطلب جذر
         try:
-            st = os.statvfs("/")
-            free = st.f_bavail * st.f_frsize
-            total = st.f_blocks * st.f_frsize
+            free, total = _statvfs_root()
             findings.append(ScanFinding(
                 title=f"المساحة: {_fmt_gb(free)} متاحة من {_fmt_gb(total)}",
                 detail=(

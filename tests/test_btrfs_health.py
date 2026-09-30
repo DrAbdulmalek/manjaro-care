@@ -80,7 +80,8 @@ class TestParsers:
 
 
 def _healthy_env():
-    """بيئة وهمية كاملة لنظام btrfs سليم."""
+    """بيئة وهمية كاملة لنظام btrfs سليم — تشمل مساحة قرص وهمية (قراءة
+    statvfs الحقيقية تعتمد على آلة التشغيل فتكسر حتمية الاختبار)."""
     def fake_run_unprivileged(args, timeout=30):
         key = " ".join(args)
         responses = {
@@ -94,7 +95,20 @@ def _healthy_env():
             "smartctl --health /dev/sda": CommandResult(0, "SMART overall-health self-assessment test result: PASSED", ""),
         }
         return responses.get(key, CommandResult(1, "", "mock miss"))
-    return patch.object(bh, "run_unprivileged", side_effect=fake_run_unprivileged)
+    disk = patch.object(
+        bh, "_statvfs_root",
+        return_value=(50 * 1024 ** 3, 100 * 1024 ** 3),  # 50GB من 100GB — سليم
+    )
+    cmds = patch.object(bh, "run_unprivileged", side_effect=fake_run_unprivileged)
+    # كلا الرقعان يبقيان داخل نفس نافذة الاستخدام
+    class _Stack:
+        def __enter__(self):
+            disk.start()
+            cmds.start()
+        def __exit__(self, *a):
+            cmds.stop()
+            disk.stop()
+    return _Stack()
 
 
 class TestScan:

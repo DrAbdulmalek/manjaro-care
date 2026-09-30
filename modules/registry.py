@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from modules.app_uninstaller import AppUninstallerModule
+from modules.archive_extract import ArchiveExtractModule
 from modules.boot_guard import BootGuardModule
 from modules.boot_manager import BootManagerModule
 from modules.boot_sanity import BootSanityModule
@@ -22,6 +23,8 @@ from modules.file_shredder import FileShredderModule
 # وحدات Garuda-style
 from modules.firewall_manager import FirewallManagerModule
 from modules.flatpak_cleanup import FlatpakCleanupModule
+from modules.font_toolkit import FontToolkitModule
+from modules.gamescope_hdr import GamescopeHdrModule
 from modules.journal_vacuum import JournalVacuumModule
 from modules.kernel_cleanup import KernelCleanupModule
 from modules.large_file_finder import LargeFileFinderModule
@@ -31,6 +34,7 @@ from modules.mirror_rank import MirrorRankModule
 # الوحدات الأصلية
 from modules.network_reset import NetworkResetModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
+from modules.pdf_toolkit import PdfToolkitModule
 from modules.performance_optimizer import PerformanceOptimizerModule
 from modules.pkg_cleanup import PackageCleanupModule
 from modules.printer_manager import PrinterManagerModule
@@ -77,6 +81,11 @@ def get_all_modules():
         DuplicateFinderModule(),
         LargeFileFinderModule(),
 
+        # أدوات ملفات ووسائط (مستوردة من طقم المستخدم الشخصي)
+        ArchiveExtractModule(),   # الاستخراج الآمن للأرشيفات (safe_extract.sh)
+        PdfToolkitModule(),       # صور→PDF / OCR / استخراج نص
+        FontToolkitModule(),      # ttx / subset / merge
+
         # الأداء والتحسين
         PerformanceOptimizerModule(),
         RamBoosterModule(),
@@ -86,6 +95,7 @@ def get_all_modules():
 
         # الألعاب
         # game_mode لا يوجد له وحدة — نافذة مخصصة فقط
+        GamescopeHdrModule(),  # توفر gamescope + ملف HDR الافتراضي (الإطلاق من نافذة الألعاب)
 
         # الحماية والخصوصية
         # ملاحظة: PrivacyGuardModule كانت تُنشأ مرتين (هنا وفي قسم التنظيف
