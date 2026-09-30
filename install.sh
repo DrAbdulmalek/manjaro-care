@@ -70,7 +70,7 @@ echo -e "  ${GREEN}تم تثبيت القائمة${NC}"
 # ── 4. فحص التبعيات ──
 echo -e "${BOLD}[4/4] فحص التبعيات...${NC}"
 MISSING=()
-for pkg in python-pyqt5 polkit pacman; do
+for pkg in python-pyqt5 polkit pacman psmisc; do
     if ! /usr/bin/pacman -Qi "$pkg" &>/dev/null; then
         MISSING+=("$pkg")
     fi
