@@ -24,7 +24,12 @@ class OneClickMaintenanceModule(MaintenanceModule):
 
     def scan(self):
         findings = []
-        # نقوم بفحص سريع لكل الوحدات الفرعية
+        # اجعل الفحص الشامل يعكس بوابة Pacman نفسها، حتى لا يظهر
+        # "النظام سليم" بينما سيؤدي apply() إلى التوقف بسبب مشكلة Pacman.
+        pacman_scan = PacmanMaintenanceModule().scan()
+        findings.extend(pacman_scan.findings)
+
+        # نقوم بفحص سريع لبقية الوحدات الفرعية
         checks = []
 
         # 1. حزم يتيمة
@@ -52,7 +57,8 @@ class OneClickMaintenanceModule(MaintenanceModule):
                 severity=Severity.WARNING,
                 actionable=True,
             ))
-        else:
+
+        if not findings:
             findings.append(ScanFinding(
                 title="النظام في حالة ممتازة ✅",
                 detail="لا توجد مهام صيانة مطلوبة.",
