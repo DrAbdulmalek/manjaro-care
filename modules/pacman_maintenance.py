@@ -61,6 +61,22 @@ class PacmanMaintenanceModule(MaintenanceModule):
             ))
             return ScanResult(module_name=self.name, findings=findings)
 
+        if not shutil.which("fuser"):
+            findings.append(ScanFinding(
+                title="fuser غير موجود",
+                detail="لا يمكن التحقق بأمان من استخدام db.lck؛ ثبّت حزمة psmisc قبل التطبيق.",
+                severity=Severity.CRITICAL,
+                actionable=False,
+            ))
+
+        if not shutil.which("pacman-mirrors"):
+            findings.append(ScanFinding(
+                title="pacman-mirrors غير موجود",
+                detail="لن يمكن تحديث قائمة المرايا؛ ثبّت pacman-mirrors قبل التطبيق.",
+                severity=Severity.CRITICAL,
+                actionable=False,
+            ))
+
         if _pacman_running():
             findings.append(ScanFinding(
                 title="pacman يعمل حالياً",
