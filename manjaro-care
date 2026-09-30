@@ -9,6 +9,7 @@ manjaro-care — نقطة الدخول الرئيسية.
     manjaro-care
 """
 
+import argparse
 import sys
 import os
 
@@ -22,6 +23,20 @@ from gui.main_window import MainWindow
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="manjaro-care",
+        description="Manjaro Care — مركز صيانة النظام (نقرة بدل أمر)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="وضع المعاينة الجافة: لا يُنفَّذ أي تعديل على النظام — "
+             "تُعرض خطط التنفيذ في كل بطاقة ويُعطَّل زر «تطبيق»",
+    )
+    args = parser.parse_args()
+
+    from core.runtime import set_dry_run
+    set_dry_run(args.dry_run)
+
     os.environ.setdefault("QT_QPA_PLATFORMTHEME", "kde")  # يحترم إعداد المستخدم إن وُجد مسبقاً، ويجب ضبطه قبل QApplication
     app = QApplication(sys.argv)
     app.setApplicationName("Manjaro Care")
@@ -38,7 +53,7 @@ def main() -> int:
         QPushButton:pressed { background-color: #2a2a2a; }
     """)
 
-    window = MainWindow()
+    window = MainWindow(dry_run=args.dry_run)
     window.show()
     return app.exec_()
 

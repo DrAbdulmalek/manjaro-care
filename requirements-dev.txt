@@ -1,0 +1,4 @@
+# أدوات تطوير واختبار manjaro-care — تثبيت بيئة CI محلياً:
+#   python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+pytest>=8
+ruff>=0.6

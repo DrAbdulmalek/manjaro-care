@@ -39,8 +39,25 @@ polkit) لا تُجمِّد النافذة. عند إضافة وحدة جديد�
 # بعد التثبيت
 manjaro-care
 
+# وضع المعاينة الجافة (dry-run): لا يُنفَّذ أي تعديل إطلاقاً —
+# يُعرض فقط ما كان سيُنفَّذ، وزر «تطبيق» معطّل في كل البطاقات
+manjaro-care --dry-run
+
 # أو ابحث عن "Manjaro Care" في قائمة التطبيقات
 ```
+
+### وضع المعاينة الجافة (--dry-run)
+
+وضع عالمي بثلاث طبقات حماية (راجع `core/runtime.py`):
+
+1. `core/privilege.py` يرفض تنفيذ أي أمر مرتفع الصلاحية ويوسمه
+   `[DRY-RUN]` في اللوغ — طبقة أمان أخيرة لا يمكن للوحدات تجاوزها.
+2. الواجهة تعرض شريط تحذير وتعطّل زر «تطبيق» في كل البطاقات.
+3. كل وحدة جديدة تفحص `is_dry_run()` في `apply()` وتُرجع خطة صادقة
+   (نموذج مرجعي: `modules/boot_guard.py`).
+
+فحوص القراءة (scan) تظل تعمل في هذا الوضع حتى تعرض البطاقات نتائج
+حقيقية — ما يُمنع هو أوامر التعديل فقط.
 
 لا حاجة لإعداد `/etc/sudoers.d` — كل إجراء يحتاج صلاحيات جذر يمر عبر
 `pkexec` (polkit)، فتظهر نافذة مصادقة رسومية قياسية.
@@ -49,15 +66,46 @@ manjaro-care
 
 | الوحدة | ماذا تفعل | مستوى الحساسية |
 |---|---|---|
-| `network_reset` | يشغّل reset-net لإصلاح الشبكة بعد فصل VPN | آمن |
-| `failed_services` | يكتشف خدمات systemd الفاشلة ويعيد تشغيلها | آمن |
+| `dashboard` | لوحة صحة حية مع رسوم بيانية وتنبيهات ذكية | آمن (إخباري) |
+| `system_info` | معلومات النظام والعتاد | آمن (إخباري) |
+| `one_click_maintenance` | صيانة بنقرة واحدة (تنظيف الحزم اليتيمة، journal، الكاش…) | متوسط |
+| `startup_impact` | أثر برامج بدء التشغيل على زمن الإقلاع | آمن (إخباري) |
+| `report_export` | تقرير Markdown منقّى تلقائياً (مستخدم/جهاز/IP/MAC/تسلسلات/home) بمعاينة قبل الحفظ | آمن |
+| `system_cleaner` | تنظيف مخلفات النظام والمتصفح | متوسط |
+| `privacy_guard` | حذف آثار النشاط (سجل أوامر، سلة، بيانات تشغيل) | متوسط |
 | `pkg_cleanup` | يحذف الحزم اليتيمة ويقلّص كاش pacman | متوسط |
+| `flatpak_cleanup` | تنظيف إصدارات Flatpak القديمة غير المستخدمة | متوسط |
 | `journal_vacuum` | يقلّص سجلات systemd journal إلى 300M | متوسط |
-| `mirror_rank` | يعيد اختبار وترتيب مرايا pacman حسب السرعة | آمن |
-| `kernel_cleanup` | يزيل نُوى Linux القديمة (يبقي الحالية + الأحدث دائماً) | **حساس** |
-| `boot_sanity` | فحص سلامة الإقلاع على btrfs: انزلاق GRUB للقطات، تفعيل rootflags=subvol=@ | متوسط |
-| `disk_analyzer` | يعرض أكبر الملفات و/tmp — إخباري بحت، بلا حذف تلقائي | آمن (إخباري) |
-| `startup_manager` | إدارة فردية كاملة لبرامج بدء التشغيل (تفعيل/تعطيل لكل برنامج على حدة) | آمن، بلا صلاحيات جذر |
+| `snapper_cleanup` | يحذف لقطات snapper القديمة فقط ويحتفظ بآخر N قابل للضبط (معاينة بالمعرّفات) | متوسط |
+| `snapshot_before_update` | لقطة موسومة "manjaro-care pre-update" قبل التحديث + رجوع بتأكيد مزدوج (نافذة مخصصة) | متوسط |
+| `app_uninstaller` | إزالة التطبيقات بعرض ما سيتأثر | متوسط |
+| `software_updater` | فحص تحديثات pacman/AUR/Flatpak في مكان واحد | آمن |
+| `duplicate_finder` | كشف الملفات المكررة (عرض فقط) | آمن (إخباري) |
+| `large_file_finder` | أكبر الملفات على القرص | آمن (إخباري) |
+| `performance_optimizer` | zram، ananicy، swappiness | متوسط |
+| `ram_booster` | تنظيف كاش الذاكرة | متوسط |
+| `disk_optimizer` | TRIM وجدولة الإدخال/الإخراج | متوسط |
+| `tcp_optimizer` | ضبط معاملات الشبكة sysctl | متوسط |
+| `kernel_cleanup` | يزيل نُوى Linux القديمة (يبقي الحالية + الأحدث دائماً، يرفض عند عدم اليقين) | **حساس** |
+| `firewall_manager` | حالة الجدار الناري (ufw/firewalld) وتفعيله | متوسط |
+| `file_shredder` | تدمير آمن للملفات (مسح متعدد المراحل + تشفير اختياري) | **حساس** |
+| `boot_manager` | إعدادات GRUB وعدد إدخالات الإقلاع (تعديل مع نسخة احتياطية) | متوسط |
+| `boot_guard` | حارس انزلاق الإقلاع على btrfs: rootflags=subvol، كشف سطور اللقطات في grub.cfg، إصلاح بنسخة احتياطية وتراجع تلقائي | **حساس** |
+| `startup_manager` | إدارة فردية كاملة لبرامج بدء التشغيل (بصلاحيات مستخدم فقط) | آمن |
+| `repo_manager` | فحص وإدارة مستودعات pacman | متوسط |
+| `mirror_rank` | ترتيب المرايا حسب السرعة: مانجارو (pacman-mirrors) / آرتش (reflector) — كشف تلقائي للتوزيعة | آمن |
+| `locale_manager` | تفعيل اللغات وإنشاء locales | متوسط |
+| `time_manager` | المنطقة الزمنية والمزامنة | آمن |
+| `network_reset` | يشغّل reset-net لإصلاح الشبكة بعد فصل VPN | آمن |
+| `driver_manager` | حالة تعريفات GPU/الطابعات | آمن (إخباري) |
+| `disk_analyzer` | يعرض أكبر الملفات و/tmp — إخباري بحت | آمن (إخباري) |
+| `btrfs_snapper` | فحص لقطات BTRFS — للاطلاع فقط | آمن (إخباري) |
+| `btrfs_health` | صحة btrfs: scrub/device stats/SMART/fstrim/أبطأ خدمات إقلاع + إجراءان اختياريان بمعاينة وتأكيد منفصلين | آمن |
+| `boot_sanity` | فحص سلامة الإقلاع على btrfs (تكامل manjaro-doctor + fallback أصلي، إصلاح بنسخة احتياطية) | متوسط |
+| `update_check` | إخبارية: ملفات .pacnew مع أزرار الفروق، تحذير عدم المزامنة والتحديث الجزئي، خدمات فاشلة، أخبار مانجارو | آمن (إخباري) |
+| `failed_services` | يكتشف خدمات systemd الفاشلة ويعيد تشغيلها | آمن |
+| `user_manager` | إدارة المستخدمين والمجموعات | متوسط |
+| `printer_manager` | حالة الطابعات (CUPS) | آمن |
 
 ### وحدات ذات واجهة مخصصة (`has_custom_ui`)
 
@@ -108,11 +156,30 @@ manjaro-care
 واجهة manjaro-care تجعل أدوات manjaro-doctor متاحة بنقرة واحدة
 بدل تشغيل سكربتات bash يدوياً.
 
+## الاختبارات و CI
+
+```bash
+# محلياً — كل الاختبارات محاكاة بالكامل (لا أمر حقيقي يُنفَّذ)
+python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest -q
+.venv/bin/ruff check .
+```
+
+`.github/workflows/tests.yml` يشغّل pytest وruff على كل PR وعلى main
+(بالإضافة إلى `lint.yml` القديم للفحص النحوي).
+
 ## أفكار للوحدات القادمة
 
-- `snapper_cleanup` — إدارة لقطات Snapper القديمة
-- `flatpak_cleanup` — تنظيف إصدارات Flatpak القديمة غير المستخدمة
 - `gpu_driver_check` — فحص حالة تعريفات GPU واقتراح التحديث
+- `btrfs_balance` — إدارة توازن btrfs بعد حذف بيانات كثيرة
+- `journal_export` — تصدير مقطع من journal لتقرير الخطأ
+- `aur_health` — فحص حزم AUR اليتيمة عن مُجرّدها (orphaned AUR)
+
+## توثيق إضافي
+
+- [docs/POLKIT.md](docs/POLKIT.md) — لماذا لا يوجد ملف polkit .policy مخصص (قرار موثق)
+- [docs/PACKAGING.md](docs/PACKAGING.md) — توليد sha256sums بعد وسم الإصدار
+- [docs/QT6_MIGRATION.md](docs/QT6_MIGRATION.md) — تقييم الانتقال إلى PySide6
 
 ## التثبيت
 

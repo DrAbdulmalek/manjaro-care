@@ -19,14 +19,20 @@ pkexec، تماماً كما يفعل reset-net-tray الحالي.
 """
 
 from __future__ import annotations
+
 import shutil
 
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_privileged
-from core.logger import get_logger
 
 log = get_logger("network_reset")
 

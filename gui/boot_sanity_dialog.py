@@ -13,20 +13,34 @@ gui/boot_sanity_dialog.py
 """
 
 from __future__ import annotations
+
 import webbrowser
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QGroupBox, QSizePolicy,
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 from modules.boot_sanity import (
-    DOC_URL, _script_exists, _run_script_json,
-    _get_root_source, _is_booted_from_snapshot, _is_rootflags_enabled,
-    _get_grub_linux_line, _grub_points_to_snapshot, _is_btrfs_system,
-    _kernel_from_grub, _kernel_exists,
+    DOC_URL,
+    _get_grub_linux_line,
+    _get_root_source,
+    _grub_points_to_snapshot,
+    _is_booted_from_snapshot,
+    _is_btrfs_system,
+    _is_rootflags_enabled,
+    _kernel_exists,
+    _kernel_from_grub,
+    _run_script_json,
+    _script_exists,
 )
 
 
@@ -166,7 +180,7 @@ class BootSanityDialog(QDialog):
         lines.append("")
         lines.append("═══ فحص 1: مصدر الجذر الحالي ═══")
         root_source = _get_root_source()
-        lines.append(f"الأمر: findmnt -no SOURCE /")
+        lines.append("الأمر: findmnt -no SOURCE /")
         lines.append(f"النتيجة: {root_source}")
 
         booted_from_snapshot = _is_booted_from_snapshot(root_source)
@@ -183,7 +197,7 @@ class BootSanityDialog(QDialog):
         lines.append("═══ فحص 2: الإدخال الرئيسي في grub.cfg ═══")
         linux_line = _get_grub_linux_line()
         if linux_line:
-            lines.append(f"سطر linux في الإدخال الرئيسي:")
+            lines.append("سطر linux في الإدخال الرئيسي:")
             display_line = linux_line if len(linux_line) <= 150 else linux_line[:150] + "..."
             lines.append(f"  {display_line}")
 
@@ -199,10 +213,10 @@ class BootSanityDialog(QDialog):
             if kernel_name:
                 lines.append(f"ملف النواة المُشار إليه: /boot/{kernel_name}")
                 if _kernel_exists(kernel_name):
-                    lines.append(f"✅ الملف موجود")
+                    lines.append("✅ الملف موجود")
                 else:
                     problems_found += 1
-                    lines.append(f"❌ الملف غير موجود! — سيفشل الإقلاع")
+                    lines.append("❌ الملف غير موجود! — سيفشل الإقلاع")
         else:
             lines.append("⚠️ تعذر قراءة إدخال grub الرئيسي")
 

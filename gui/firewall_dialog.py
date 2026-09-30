@@ -4,19 +4,32 @@
 gui/firewall_dialog.py — نافذة مخصصة لإدارة الجدار الناري (firewalld/ufw).
 """
 from __future__ import annotations
-import shutil
+
 import re
+import shutil
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QCheckBox, QMessageBox,
-    QHeaderView, QLineEdit, QComboBox, QGroupBox, QTabWidget,
-    QWidget, QFormLayout,
-)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.privilege import run_privileged, run_unprivileged
 from core.logger import get_logger
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("firewall_dialog")
 
@@ -61,7 +74,10 @@ class FirewallManagerDialog(QDialog):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         title = QLabel(f"الجدار الناري المكتشف: {self.fw_type or 'غير مثبت'}")
-        f = title.font(); f.setBold(True); f.setPointSize(12); title.setFont(f)
+        f = title.font()
+        f.setBold(True)
+        f.setPointSize(12)
+        title.setFont(f)
         layout.addWidget(title)
 
         if not self.fw_type:
@@ -210,9 +226,9 @@ class FirewallManagerDialog(QDialog):
     def _reload_firewalld(self):
         r = run_unprivileged(["systemctl", "is-active", "firewalld"])
         active = r.ok and r.stdout.strip() == "active"
-        self.fw_status_label.setText(
-            f"الحالة: {'<span style=\"color:#2e7d32;\">نشط</span>' if active else '<span style=\"color:#c62828;\">متوقف</span>'}"
-        )
+        active_html = '<span style="color:#2e7d32;">نشط</span>'
+        stopped_html = '<span style="color:#c62828;">متوقف</span>'
+        self.fw_status_label.setText(f"الحالة: {active_html if active else stopped_html}")
 
         zones_result = run_unprivileged(["firewall-cmd", "--get-active-zones"])
         active_zones = {}

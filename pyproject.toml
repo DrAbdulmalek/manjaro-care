@@ -1,0 +1,32 @@
+[tool.ruff]
+# أداة فحص الجودة — الإعدادات تحترم نمط المشروع القائم
+# (نصوص عربية، إعلان UTF-8 في كل ملف، سلاسل طويلة متصلة)
+line-length = 110
+target-version = "py310"
+exclude = [".venv", "project_context.txt"]
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9",  # أخطاء pycodestyle الجوهرية (بلا E5 length — العربية)
+    "F",               # pyflakes: أسماء غير معرفة، استيرادات مهملة، متغيرات ميتة
+    "I",               # ترتيب الاستيرادات
+    "B",               # bugbear: أنماط شائعة التسبب بالأخطاء
+    "W",               # تحذيرات pycodestyle
+]
+ignore = [
+    # كود المشروع يعلن UTF-8 في كل ملف عمداً (توافق قديم)
+    "UP009",
+    # RUF001/2/3 يشوبك بين حروف عربية ولاتينية — قاعدة غير صالحة
+    # لمشروع نصوصه عربية بالكامل
+    "RUF001", "RUF002", "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# سكربت الدخول يضيف جذر المشروع إلى sys.path قبل استيراد core/gui —
+# E402 (استيراد بعلى رأس الملف) مقصود هنا
+"manjaro-care" = ["E402"]
+"tests/conftest.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

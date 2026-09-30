@@ -8,16 +8,21 @@ modules/repo_manager.py
 مستوحى من Garuda Assistant → Repositories.
 """
 from __future__ import annotations
+
 import re
 import shutil
 from pathlib import Path
 
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_unprivileged, run_privileged
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
 
 log = get_logger("repo_manager")
 

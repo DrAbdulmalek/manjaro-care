@@ -2,14 +2,20 @@
 # -*- coding: utf-8 -*-
 """modules/file_shredder.py — الحذف الآمن للملفات (Secure Delete)."""
 from __future__ import annotations
-import shutil
+
+import os
 from pathlib import Path
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_privileged
+
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
 
 log = get_logger("file_shredder")
 

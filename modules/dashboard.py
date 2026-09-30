@@ -2,11 +2,17 @@
 # -*- coding: utf-8 -*-
 """modules/dashboard.py — وحدة لوحة القيادة."""
 from __future__ import annotations
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
+
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
 
 log = get_logger("dashboard")
 

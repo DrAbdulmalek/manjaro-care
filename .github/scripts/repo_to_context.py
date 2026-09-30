@@ -25,15 +25,13 @@ repo_to_context.py
     - يحتوي على كل الكود + الخريطة + الإحصائيات
 """
 
-import os
-import sys
-import re
 import argparse
 import json
-from pathlib import Path
-from datetime import datetime
+import re
+import sys
 from collections import defaultdict
-
+from datetime import datetime
+from pathlib import Path
 
 # ============================================================================
 # الإعدادات الافتراضية
@@ -223,7 +221,6 @@ def build_file_tree(root: Path, included_files: list) -> str:
     dirs_seen = set()
     for file_path in relative_files:
         parts = list(file_path.parts)
-        prefix = ""
         for i, part in enumerate(parts[:-1]):
             dir_path = tuple(parts[:i+1])
             if dir_path not in dirs_seen:
@@ -504,7 +501,7 @@ def main():
 
             if len(md_content) > args.max_size:
                 print(f"⚠️ تحذير: حجم الملف ({len(md_content):,}) يتجاوز الحد الأقصى ({args.max_size:,})")
-                print(f"   استخدم --split لتقسيمه، أو --max-size لزيادة الحد")
+                print("   استخدم --split لتقسيمه، أو --max-size لزيادة الحد")
 
     except Exception as e:
         print(f"❌ خطأ: {e}")

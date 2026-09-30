@@ -13,10 +13,11 @@ SystemCare في إعطاء "لمحة صحة سريعة" عند فتح التطب
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 
-from core.module_base import MaintenanceModule, ScanResult, Severity
 from core.logger import get_logger
+from core.module_base import MaintenanceModule, ScanResult, Severity
 
 log = get_logger("scanner")
 
@@ -60,7 +61,7 @@ def run_full_scan(modules: list[MaintenanceModule]) -> SystemHealthReport:
         try:
             log.info("فحص الوحدة: %s", module.slug)
             result = module.scan()
-        except Exception as exc:  # noqa: BLE001 — نريد عزل أي عطل بوحدة واحدة
+        except Exception as exc:  # نريد عزل أي عطل بوحدة واحدة (BLE مقصود)
             log.exception("فشل فحص الوحدة %s", module.slug)
             result = ScanResult(module_name=module.name, error=str(exc))
         results.append(result)

@@ -2,13 +2,20 @@
 # -*- coding: utf-8 -*-
 """modules/ram_booster.py — تنظيف الذاكرة وتقليل الـ cache."""
 from __future__ import annotations
+
 import psutil
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_privileged, run_unprivileged
+
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
+from core.privilege import run_privileged
 
 log = get_logger("ram_booster")
 
@@ -57,7 +64,7 @@ class RamBoosterModule(MaintenanceModule):
     def apply(self):
         logs = []
         # تنظيف cache (آمن — يعيد قراءة من القرص فقط)
-        r1 = run_privileged(["bash", "-c", "sync && echo 3 > /proc/sys/vm/drop_caches"])
+        run_privileged(["bash", "-c", "sync && echo 3 > /proc/sys/vm/drop_caches"])
         logs.append("تم تنظيف cache النظام.")
 
         # تقليل swappiness مؤقتاً
