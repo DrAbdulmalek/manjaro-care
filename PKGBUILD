@@ -6,7 +6,7 @@ pkgdesc="Graphical system maintenance center for Manjaro/Arch Linux — click in
 arch=('any')
 url="https://github.com/DrAbdulmalek/manjaro-care"
 license=('MIT')
-depends=('python-pyqt5' 'polkit' 'pacman' 'python')
+depends=('python-pyqt5' 'polkit' 'pacman' 'python' 'psmisc')
 optdepends=(
     'pacman-contrib: لـ paccache (تنظيف الكاش)'
     'pacman-mirrors: لترتيب المرايا حسب السرعة'
