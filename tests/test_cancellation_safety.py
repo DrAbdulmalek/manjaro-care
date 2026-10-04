@@ -10,16 +10,21 @@ from PyQt5.QtWidgets import QApplication
 from gui.pdf_toolkit_dialog import CmdWorker
 from modules.archive_extract import ExtractionPlan, run_extraction
 
+_QT_APP = None
+
 
 def _app():
-    # GitHub Actions runners are headless; keep the regression test independent
-    # of an X/Wayland display while exercising the real Qt objects.
+    # Keep a strong Python reference to QApplication; otherwise its C++ object
+    # may be destroyed while the worker test is still running.
+    global _QT_APP
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    return QApplication.instance() or QApplication([])
+    if _QT_APP is None:
+        _QT_APP = QApplication.instance() or QApplication([])
+    return _QT_APP
 
 
 def test_cmd_worker_cancel_stops_long_process():
-    _app()
+    app = _app()
     worker = CmdWorker([sys.executable, "-c", "import time; time.sleep(30)"], timeout=60)
     cancelled = []
     worker.cancelled.connect(lambda: cancelled.append(True))
@@ -28,10 +33,10 @@ def test_cmd_worker_cancel_stops_long_process():
     worker.cancel()
     deadline = time.monotonic() + 5
     while worker.isRunning() and time.monotonic() < deadline:
-        _app().processEvents()
+        app.processEvents()
         time.sleep(0.05)
     worker.wait(1000)
-    _app().processEvents()
+    app.processEvents()
     assert not worker.isRunning()
     assert cancelled == [True]
 
