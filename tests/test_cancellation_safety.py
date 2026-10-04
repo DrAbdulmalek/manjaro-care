@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -11,6 +12,9 @@ from modules.archive_extract import ExtractionPlan, run_extraction
 
 
 def _app():
+    # GitHub Actions runners are headless; keep the regression test independent
+    # of an X/Wayland display while exercising the real Qt objects.
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     return QApplication.instance() or QApplication([])
 
 
