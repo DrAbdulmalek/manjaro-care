@@ -12,6 +12,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+from core.runtime import set_dry_run
+from modules.archive_extract import (
+    ExtractionPlan,
+    archive_kind,
+    build_extract_cmd,
+    plan_extraction,
+    run_extraction,
+)
 
 class _FakeProc:
     def __init__(self, returncode=0, stdout="", stderr=""):
@@ -28,15 +36,6 @@ class _FakeProc:
 
     def wait(self, timeout=None):
         return self.returncode
-
-from core.runtime import set_dry_run
-from modules.archive_extract import (
-    ExtractionPlan,
-    archive_kind,
-    build_extract_cmd,
-    plan_extraction,
-    run_extraction,
-)
 
 
 class TestKindAndCmds:
