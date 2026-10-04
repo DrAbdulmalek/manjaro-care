@@ -20,8 +20,12 @@ modules/archive_extract.py
 
 from __future__ import annotations
 
+import os
 import shutil
+import signal
 import subprocess
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,6 +71,7 @@ class ExtractionOutcome:
     cleaned_partial_dir: bool = False # نُظّف مجلد جزئي بعد فشل؟
     message: str = ""
     log_output: str = ""
+    cancelled: bool = False
 
 
 def archive_kind(archive: Path) -> str:
@@ -122,6 +127,7 @@ def run_extraction(
     plan: ExtractionPlan,
     delete_on_success: bool = True,
     timeout: int = 1800,
+    cancel_event: threading.Event | None = None,
 ) -> ExtractionOutcome:
     """
     تنفيذ خطة استخراج واحدة وفق سلوك safe_extract.sh:
@@ -141,19 +147,72 @@ def run_extraction(
         )
 
     try:
-        proc = subprocess.run(
-            plan.cmd, capture_output=True, text=True, timeout=timeout, check=False
+        proc = subprocess.Popen(
+            plan.cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=(os.name == "posix"),
         )
+        deadline = time.monotonic() + timeout
+        while proc.poll() is None:
+            if cancel_event is not None and cancel_event.is_set():
+                if os.name == "posix":
+                    try:
+                        os.killpg(proc.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                else:
+                    proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    if os.name == "posix":
+                        try:
+                            os.killpg(proc.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    else:
+                        proc.kill()
+                    proc.wait(timeout=3)
+                proc.communicate()
+                cleaned = _cleanup_partial_dir(plan.target_dir)
+                return ExtractionOutcome(
+                    archive=plan.archive, success=False, cancelled=True,
+                    cleaned_partial_dir=cleaned,
+                    message=f"أُلغي استخراج '{plan.archive.name}' — حُفظ الأرشيف ونُظّف الجزئي.",
+                )
+            if time.monotonic() >= deadline:
+                if os.name == "posix":
+                    try:
+                        os.killpg(proc.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                else:
+                    proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    if os.name == "posix":
+                        try:
+                            os.killpg(proc.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    else:
+                        proc.kill()
+                    proc.wait(timeout=3)
+                proc.communicate()
+                cleaned = _cleanup_partial_dir(plan.target_dir)
+                return ExtractionOutcome(
+                    archive=plan.archive, success=False, cleaned_partial_dir=cleaned,
+                    message=f"انتهت مهلة استخراج '{plan.archive.name}' — نُظّف الجزئي.",
+                )
+            time.sleep(0.1)
+        stdout, stderr = proc.communicate()
     except FileNotFoundError:
         return ExtractionOutcome(
             archive=plan.archive, success=False,
             message=f"الأداة '{plan.tool}' غير مثبتة.",
-        )
-    except subprocess.TimeoutExpired:
-        _cleanup_partial_dir(plan.target_dir)
-        return ExtractionOutcome(
-            archive=plan.archive, success=False, cleaned_partial_dir=True,
-            message=f"انتهت مهلة استخراج '{plan.archive.name}' — نُظّف الجزئي.",
         )
 
     if proc.returncode == 0:
@@ -168,7 +227,7 @@ def run_extraction(
             archive=plan.archive, success=True, deleted_archive=deleted,
             message=f"تم استخراج '{plan.archive.name}' بنجاح"
                     + (" وحُذف الأرشيف الأصلي." if deleted else "."),
-            log_output=(proc.stdout + proc.stderr)[-2000:],
+            log_output=((stdout or "") + (stderr or ""))[-2000:],
         )
 
     # فشل: تنظيف الجزئي والإبقاء على الأرشيف (سلوك السكربت الأصلي)
@@ -177,7 +236,7 @@ def run_extraction(
         archive=plan.archive, success=False, cleaned_partial_dir=cleaned,
         message=f"فشل استخراج '{plan.archive.name}' (رمز {proc.returncode})"
                 + " — نُظّف المجلد الجزئي وحُفِظ الأرشيف.",
-        log_output=(proc.stdout + proc.stderr)[-2000:],
+        log_output=((stdout or "") + (stderr or ""))[-2000:],
     )
 
 

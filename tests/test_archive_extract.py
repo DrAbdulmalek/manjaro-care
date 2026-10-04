@@ -21,6 +21,23 @@ from modules.archive_extract import (
 )
 
 
+class _FakeProc:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self._stdout = stdout
+        self._stderr = stderr
+        self.pid = 12345
+
+    def poll(self):
+        return self.returncode
+
+    def communicate(self):
+        return self._stdout, self._stderr
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+
 class TestKindAndCmds:
     def test_zip_rar_other(self, tmp_path):
         assert archive_kind(tmp_path / "a.ZIP") == "zip"
@@ -69,30 +86,26 @@ class TestRunExtraction:
     def test_dry_run_never_executes(self, tmp_path):
         set_dry_run(True)
         plan = self._plan(tmp_path)
-        with patch("modules.archive_extract.subprocess.run") as mock_run:
-            mock_run.side_effect = AssertionError("تنفيذ حقيقي أثناء dry-run!")
+        with patch("modules.archive_extract.subprocess.Popen") as mock_popen:
+            mock_popen.side_effect = AssertionError("تنفيذ حقيقي أثناء dry-run!")
             out = run_extraction(plan)
-        mock_run.assert_not_called()
+        mock_popen.assert_not_called()
         assert out.dry_run and out.success
         assert "[DRY-RUN]" in out.message
         assert plan.archive.exists()  # لا حذف أيضاً
 
     def test_success_deletes_archive(self, tmp_path):
         plan = self._plan(tmp_path)
-        with patch("modules.archive_extract.subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
-            mock_run.return_value.stdout = "done"
-            mock_run.return_value.stderr = ""
+        with patch("modules.archive_extract.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _FakeProc(0, "done", "")
             out = run_extraction(plan, delete_on_success=True)
         assert out.success and out.deleted_archive
         assert not plan.archive.exists()
 
     def test_success_keeps_archive_when_requested(self, tmp_path):
         plan = self._plan(tmp_path)
-        with patch("modules.archive_extract.subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
-            mock_run.return_value.stdout = ""
-            mock_run.return_value.stderr = ""
+        with patch("modules.archive_extract.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _FakeProc(0, "", "")
             out = run_extraction(plan, delete_on_success=False)
         assert out.success and not out.deleted_archive
         assert plan.archive.exists()
@@ -100,14 +113,13 @@ class TestRunExtraction:
     def test_failure_cleans_partial_and_keeps_archive(self, tmp_path):
         plan = self._plan(tmp_path)
         # استخراج جزئي: مجلد الهدف أنشأ ملفاً ثم فشل الأمر
-        def fake_run(cmd, **kwargs):
-            plan.target_dir.mkdir(exist_ok=True)
-            (plan.target_dir / "partial.bin").write_bytes(b"p")
-            r = type("R", (), {})()
-            r.returncode, r.stdout, r.stderr = 2, "", "error"
-            return r
+        class FakeFailProc(_FakeProc):
+            def __init__(self):
+                super().__init__(2, "", "error")
+                plan.target_dir.mkdir(exist_ok=True)
+                (plan.target_dir / "partial.bin").write_bytes(b"p")
 
-        with patch("modules.archive_extract.subprocess.run", side_effect=fake_run):
+        with patch("modules.archive_extract.subprocess.Popen", return_value=FakeFailProc()):
             out = run_extraction(plan)
         assert not out.success and out.cleaned_partial_dir
         assert not plan.target_dir.exists()   # نُظّف الجزئي
@@ -115,7 +127,7 @@ class TestRunExtraction:
 
     def test_missing_tool_reported_without_crash(self, tmp_path):
         plan = self._plan(tmp_path)
-        with patch("modules.archive_extract.subprocess.run",
+        with patch("modules.archive_extract.subprocess.Popen",
                    side_effect=FileNotFoundError("no 7z")):
             out = run_extraction(plan)
         assert not out.success and "غير مثبتة" in out.message

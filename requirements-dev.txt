@@ -2,3 +2,5 @@
 #   python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 pytest>=8
 ruff>=0.6
+# مطلوب لاختبارات واجهة الإلغاء (QThread/QProgressDialog).
+PyQt5>=5.15.11

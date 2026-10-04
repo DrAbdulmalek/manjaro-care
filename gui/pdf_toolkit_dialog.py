@@ -8,6 +8,11 @@ gui/pdf_toolkit_dialog.py — نافذة حقيبة أدوات PDF.
 """
 from __future__ import annotations
 
+import os
+import signal
+import subprocess
+import threading
+import time
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
@@ -21,12 +26,12 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QProgressBar,
+    QProgressDialog,
     QPushButton,
     QVBoxLayout,
 )
 
 from core.logger import get_logger
-from core.privilege import run_unprivileged
 from core.runtime import is_dry_run
 from gui.workers import BusyCloseGuardMixin
 from modules.pdf_toolkit import (
@@ -41,26 +46,80 @@ log = get_logger("pdf_toolkit_dialog")
 
 
 class CmdWorker(QThread):
-    """عامل عام: ينفّذ argv صريحاً ويعيد (نجاح، خرج)."""
+    """عامل argv قابل للإلغاء فعلياً، مع قتل مجموعة العملية عند الإلغاء/المهلة."""
     finished_ok = pyqtSignal(bool, str)
     failed = pyqtSignal(str)
+    cancelled = pyqtSignal()
 
     def __init__(self, cmd: list[str], timeout: int = 1800, parent=None):
         super().__init__(parent)
         self._cmd = cmd
         self._timeout = timeout
+        self._cancel = threading.Event()
+        self._proc: subprocess.Popen | None = None
+
+    def cancel(self):
+        self._cancel.set()
+
+    def _stop_process_group(self, proc: subprocess.Popen, force: bool = False):
+        if proc.poll() is not None:
+            return
+        try:
+            if os.name == "posix":
+                sig = signal.SIGKILL if force else signal.SIGTERM
+                os.killpg(proc.pid, sig)
+            elif force:
+                proc.kill()
+            else:
+                proc.terminate()
+        except ProcessLookupError:
+            pass
 
     def run(self):
         if is_dry_run():
             self.finished_ok.emit(True, "[DRY-RUN] لم يُنفَّذ: " + " ".join(self._cmd))
             return
         try:
-            r = run_unprivileged(self._cmd, timeout=self._timeout)
+            self._proc = subprocess.Popen(
+                self._cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=(os.name == "posix"),
+            )
+            deadline = time.monotonic() + self._timeout
+            while self._proc.poll() is None:
+                if self._cancel.is_set():
+                    self._stop_process_group(self._proc)
+                    try:
+                        self._proc.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        self._stop_process_group(self._proc, force=True)
+                        self._proc.wait(timeout=3)
+                    self._proc.communicate()
+                    self.cancelled.emit()
+                    return
+                if time.monotonic() >= deadline:
+                    self._stop_process_group(self._proc)
+                    try:
+                        self._proc.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        self._stop_process_group(self._proc, force=True)
+                        self._proc.wait(timeout=3)
+                    self._proc.communicate()
+                    self.failed.emit("انتهت مهلة العملية وتم إيقافها بأمان.")
+                    return
+                time.sleep(0.1)
+            stdout, stderr = self._proc.communicate()
+            msg = (stdout + stderr)[-2000:] or ("تم" if self._proc.returncode == 0 else
+                                                f"فشل (رمز {self._proc.returncode})")
+            self.finished_ok.emit(self._proc.returncode == 0, msg)
+        except FileNotFoundError:
+            self.failed.emit(f"الأداة غير موجودة: {self._cmd[0]}")
         except Exception as exc:
             self.failed.emit(str(exc))
-            return
-        self.finished_ok.emit(r.ok, (r.stdout + r.stderr)[-2000:] or
-                              ("تم" if r.ok else f"فشل (رمز {r.returncode})"))
+        finally:
+            self._proc = None
 
 
 class PdfToolkitDialog(BusyCloseGuardMixin, QDialog):
@@ -70,6 +129,7 @@ class PdfToolkitDialog(BusyCloseGuardMixin, QDialog):
         self.resize(640, 520)
         self.setLayoutDirection(Qt.RightToLeft)
         self._worker = None
+        self._progress_dialog = None
         self._images: list[Path] = []   # مهيّأة فوراً — الضغط قبل الاختيار يُعالج كتنبيه لا انهيار
         self._avail = tools_availability()
         self._build_ui()
@@ -226,12 +286,29 @@ class PdfToolkitDialog(BusyCloseGuardMixin, QDialog):
         return Path(text.strip())
 
     def _start(self, cmd: list[str]):
-        self.setEnabled(False)
         self.progress.setVisible(True)
+        self._progress_dialog = QProgressDialog(
+            "تنفيذ العملية…", "إلغاء", 0, 0, self)
+        self._progress_dialog.setWindowTitle("عملية جارية")
+        self._progress_dialog.setWindowModality(Qt.WindowModal)
+        self._progress_dialog.canceled.connect(self._cancel_worker)
+        self._progress_dialog.show()
         self._worker = CmdWorker(cmd, parent=self)
         self._worker.finished_ok.connect(self._on_done)
         self._worker.failed.connect(self._on_fail)
+        self._worker.cancelled.connect(self._on_cancelled)
         self._worker.start()
+
+    def _cancel_worker(self):
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.cancel()
+
+    def _finish_progress(self):
+        self.progress.setVisible(False)
+        if self._progress_dialog is not None:
+            self._progress_dialog.close()
+            self._progress_dialog.deleteLater()
+            self._progress_dialog = None
 
     def _run_images_to_pdf(self):
         if not self._images:
@@ -280,8 +357,7 @@ class PdfToolkitDialog(BusyCloseGuardMixin, QDialog):
         self._start(cmd)
 
     def _on_done(self, ok: bool, msg: str):
-        self.setEnabled(True)
-        self.progress.setVisible(False)
+        self._finish_progress()
         if ok:
             QMessageBox.information(self, "تم", msg)
         else:
@@ -289,6 +365,9 @@ class PdfToolkitDialog(BusyCloseGuardMixin, QDialog):
         log.info("pdf_toolkit: %s", msg)
 
     def _on_fail(self, err: str):
-        self.setEnabled(True)
-        self.progress.setVisible(False)
+        self._finish_progress()
         QMessageBox.critical(self, "خطأ", err)
+
+    def _on_cancelled(self):
+        self._finish_progress()
+        QMessageBox.information(self, "أُلغي", "تم إلغاء العملية وإيقاف العملية الفرعية بأمان.")
