@@ -227,7 +227,7 @@ def run_extraction(
             archive=plan.archive, success=True, deleted_archive=deleted,
             message=f"تم استخراج '{plan.archive.name}' بنجاح"
                     + (" وحُذف الأرشيف الأصلي." if deleted else "."),
-            log_output=(proc.stdout + proc.stderr)[-2000:],
+            log_output=((stdout or "") + (stderr or ""))[-2000:],
         )
 
     # فشل: تنظيف الجزئي والإبقاء على الأرشيف (سلوك السكربت الأصلي)
@@ -236,7 +236,7 @@ def run_extraction(
         archive=plan.archive, success=False, cleaned_partial_dir=cleaned,
         message=f"فشل استخراج '{plan.archive.name}' (رمز {proc.returncode})"
                 + " — نُظّف المجلد الجزئي وحُفِظ الأرشيف.",
-        log_output=(proc.stdout + proc.stderr)[-2000:],
+        log_output=((stdout or "") + (stderr or ""))[-2000:],
     )
 
 
