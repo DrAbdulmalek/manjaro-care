@@ -104,7 +104,7 @@ class TestRunExtraction:
 
     def test_success_keeps_archive_when_requested(self, tmp_path):
         plan = self._plan(tmp_path)
-        with patch("modules.archive_extract.subprocess.run") as mock_run:
+        with patch("modules.archive_extract.subprocess.Popen") as mock_popen:
             mock_popen.return_value = _FakeProc(0, "", "")
             out = run_extraction(plan, delete_on_success=False)
         assert out.success and not out.deleted_archive
