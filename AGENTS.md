@@ -234,3 +234,12 @@ python3 scripts/test_mem0_memory.py   # حفظ + بحث + عبر الجلسات
 - Learn Harness Engineering (MIT، 15 لغة) — منهجية بناء Harness
 - Mem0 / OpenMemory — الذاكرة طويلة المدى • LobeHub — فرق الوكلاء • MCP
 - القوالب المركزية: `templates/` في `DrAbdulmalek/marathon-suite`
+
+
+
+## قاعدة main
+
+- main على GitHub: ممنوع الدفع إليه مباشرة (فروع `feat/*` أو `fix/*` ثم PR مسودة).
+- main محلي في مساحة عمل بلا remote: ممنوع الدفع لاحقًا بدون فرع.
+- الملفات المشتركة تُثبَّت على main المحلي فقط عند غياب remote كليًا.
+- إضافة remote مستقبلًا لا تغير القاعدة: كل محتوى جديد يمر عبر فرع + PR.

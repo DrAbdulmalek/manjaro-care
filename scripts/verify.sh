@@ -81,11 +81,34 @@ gate_pytest() {
     fi
 }
 
+# بوابة محرك Surya (ocr-core فقط) — تخطٍ أنيق عند غياب الحزمة الاختيارية
+# تُخزن في فتحة GATE2 منفصلة حتى لا تطغى على نتيجة pytest
+GATE2_NAME=""; GATE2_OK=1; GATE2_OUT=""
+gate_surya_engine() {
+    GATE2_NAME="surya-engine"
+    if [[ ! -f src/ocr_core/engines/surya_engine.py ]]; then
+        GATE2_OK=1; GATE2_OUT="محرك surya غير موجود على هذا الفرع — تخطي"
+        return 0
+    fi
+    if ! python3 -c "import surya" >/dev/null 2>&1; then
+        GATE2_OK=1; GATE2_OUT="surya-ocr غير مثبت (extra اختياري) — تخطي"
+        return 0
+    fi
+    if python3 -c "from ocr_core.engines.surya_engine import SuryaEngine; assert SuryaEngine.name == 'surya'" >/tmp/verify_surya.log 2>&1; then
+        GATE2_OK=1; GATE2_OUT="SuryaEngine متاح (0.22.x)"
+    else
+        GATE2_OK=0; GATE2_OUT="SuryaEngine مكسور: $(tail -2 /tmp/verify_surya.log)"
+    fi
+}
+
 if [[ $QUICK -eq 0 ]]; then
     case "$PROJECT" in
         ocr-core|translation-core|marathon-suite)
             [[ -d src ]] && export PYTHONPATH="src${PYTHONPATH:+:$PYTHONPATH}"
             gate_pytest "tests/"
+            if [[ "$PROJECT" == "ocr-core" ]]; then
+                gate_surya_engine
+            fi
             ;;
         manjaro-care)
             gate_pytest "tests/"
@@ -135,10 +158,24 @@ fi
 
 add_check "gate:$GATE_NAME" "$( [[ $GATE_OK -eq 1 ]] && echo pass || echo fail )" "$GATE_OUT"
 
+# بوابة ثانية اختيارية (Surya في ocr-core)
+if [[ -n "$GATE2_NAME" ]]; then
+    add_check "gate:$GATE2_NAME" "$( [[ $GATE2_OK -eq 1 ]] && echo pass || echo fail )" "$GATE2_OUT"
+fi
+
+# طبقة الذاكرة: ملاحظة إخبارية دائمًا (غيابها لا يحمرّ البوابة)
+MEM_NOTE="غير مفعلة في هذا المستودع — تخطي"
+if [[ -f memory/decisions.md && -f memory/lessons.md && -f memory/constraints.md ]]; then
+    MEM_NOTE="كاملة (decisions + lessons + constraints)"
+elif [[ -d memory ]]; then
+    MEM_NOTE="جزئية — راجع memory/"
+fi
+add_check "memory-layer" "pass" "$MEM_NOTE"
+
 # ─────────────────────────────────────────────
 # 3. النتيجة
 # ─────────────────────────────────────────────
-PASSED=$(( SECRETS_OK && GATE_OK ? 1 : 0 ))
+PASSED=$(( ( SECRETS_OK && GATE_OK && GATE2_OK ) ? 1 : 0 ))
 
 if [[ "$FORMAT" == "json" ]]; then
     echo "{"
