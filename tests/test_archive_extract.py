@@ -20,6 +20,7 @@ from modules.archive_extract import (
     run_extraction,
 )
 
+
 class _FakeProc:
     def __init__(self, returncode=0, stdout="", stderr=""):
         self.returncode = returncode
