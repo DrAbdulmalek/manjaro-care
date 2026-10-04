@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+
 class _FakeProc:
     def __init__(self, returncode=0, stdout="", stderr=""):
         self.returncode = returncode
@@ -96,7 +97,7 @@ class TestRunExtraction:
 
     def test_success_deletes_archive(self, tmp_path):
         plan = self._plan(tmp_path)
-        with patch("modules.archive_extract.subprocess.run") as mock_run:
+        with patch("modules.archive_extract.subprocess.Popen") as mock_popen:
             mock_popen.return_value = _FakeProc(0, "done", "")
             out = run_extraction(plan, delete_on_success=True)
         assert out.success and out.deleted_archive
