@@ -161,7 +161,7 @@ def print_mcp_equivalents():
     log("المكافئ عبر MCP (داخل Claude Code / Cursor / Codex):", "INFO")
     print()
     print("  ─── اختبار 1: حفظ ذكرى ───")
-    print(f"  add_memory(content='محرك OCR الافتراضي في ocr-core هو Tesseract',")
+    print("  add_memory(content='محرك OCR الافتراضي في ocr-core هو Tesseract',")
     print(f"              userId='{TEST_USER_ID}', agentId='{TEST_AGENT_ID}')")
     print()
     print("  ─── اختبار 2: البحث ───")

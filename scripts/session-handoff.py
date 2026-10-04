@@ -108,9 +108,14 @@ def detect_project(project_dir: Path) -> str:
 
 
 # ============ بوابات التحقق ============
-def _run(cmd: list[str], cwd: Path, timeout: int = 240) -> tuple[bool, str]:
+def _run(cmd: list[str], cwd: Path, timeout: int = 240,
+         env: dict | None = None) -> tuple[bool, str]:
     try:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        run_env = dict(os.environ)
+        if env:
+            run_env.update(env)
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
+                           timeout=timeout, env=run_env)
         tail = (r.stdout + r.stderr).strip().splitlines()[-3:]
         return r.returncode == 0, "\n".join(tail)
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
@@ -169,7 +174,7 @@ def run_verification(project_dir: Path, project: str) -> dict:
         return result
 
     for cmd, name, env in cmds:
-        ok, out = _run(cmd, project_dir, timeout=300)
+        ok, out = _run(cmd, project_dir, timeout=300, env=env)
         result["commands"].append({"name": name, "ok": ok, "output": out or "(لا مخرج)"})
         if not ok:
             result["passed"] = False
