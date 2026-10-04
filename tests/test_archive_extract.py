@@ -11,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-
 from core.runtime import set_dry_run
 from modules.archive_extract import (
     ExtractionPlan,
