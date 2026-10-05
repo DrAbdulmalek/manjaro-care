@@ -115,7 +115,7 @@ Resume → Advance → Handoff
 | PDF (تجنّب) | PyMuPDF | AGPL-3.0 — لا تستخدمه في MIT |
 | UI | PySide6 | LGPL-3.0 — تجنّب PyQt5 (GPL) |
 | تحقق | pytest, ruff, mypy | — |
-| ذاكرة | Mem0 MCP | انظر القسم 11 |
+| ذاكرة | Mem0 REST اختياري / MCP خارجي | انظر القسم 11 |
 
 ## 8. أنماط الفشل المعروفة
 
@@ -160,11 +160,11 @@ Memories saved: <count>
 Next: <what the next session should do>
 ```
 
-## 11. الذاكرة طويلة المدى (Mem0 MCP)
+## 11. الذاكرة طويلة المدى (Mem0 — REST اختياري / MCP خارجي)
 
 ### 11.1 نظرة عامة
 
-خادم Mem0 MCP يوفر ذاكرة دائمة عبر الجلسات والأدوات (Claude Code, Cursor, Codex).
+التكامل البرمجي الموجود في هذا المستودع يستخدم Mem0 REST API اختيارياً؛ أما MCP فهو مسار تكامل خارجي موثق للوكلاء الذين يدعمونه.
 الذكريات مرتبطة بـ user_id (الافتراضي: `DrAbdulmalek`) وagent_id (= اسم المشروع).
 المفتاح من البيئة حصراً: `MEM0_API_KEY` — لا يُطبع ولا يُكتب في أي ملف.
 بديل محلي بالكامل (بلا سحابة): OpenMemory MCP.
