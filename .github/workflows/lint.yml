@@ -35,8 +35,10 @@ jobs:
           exit $FAIL
 
       - name: Pacman maintenance unit tests
+        env:
+          PYTHONPATH: .
         run: |
-          pytest -q tests/test_pacman_maintenance.py
+          python -m pytest -q tests/test_pacman_maintenance.py
 
       - name: Python AST check
         run: |
