@@ -1,4 +1,5 @@
 name: Lint & Syntax Check
+# CI trigger: workflow syntax remediation verified
 
 on:
   push:
