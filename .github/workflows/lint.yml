@@ -25,6 +25,7 @@ jobs:
       - name: Bash syntax check
         run: |
           FAIL=0
+          for f in install.sh uninstall.sh scripts/manjaro-maintenance.sh; do
             if bash -n "$f" 2>&1; then
               echo "OK: $f"
             else

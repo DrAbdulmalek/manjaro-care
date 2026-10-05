@@ -8,8 +8,13 @@ import shutil
 from pathlib import Path
 
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_privileged, run_unprivileged
 
@@ -168,7 +173,7 @@ class PacmanMaintenanceModule(MaintenanceModule):
 
             fix = run_privileged([
                 "sed", "-i",
-                '/^\[community\][[:space:]]*$/s/^/# Manjaro Care disabled empty repository section: /',
+                r'/^\[community\][[:space:]]*$/s/^/# Manjaro Care disabled empty repository section: /',
                 str(PACMAN_CONF),
             ])
             if not fix.ok:

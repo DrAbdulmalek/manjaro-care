@@ -1,4 +1,3 @@
-from pathlib import Path
 
 import modules.pacman_maintenance as pacman_maintenance
 
