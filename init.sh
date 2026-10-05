@@ -88,7 +88,7 @@ elif [[ -f "src/ocr_processor.py" ]];                      then PROJECT="maratho
 fi
 
 if [[ "$PROJECT" == "unknown" ]]; then
-    log_warn "مشروع غير معروف — بعض الفحوصات ستُتخطى"
+    log_err "مشروع غير معروف — لا توجد بوابة تحقق موثوقة"
 else
     log_ok "المشروع: $PROJECT"
 fi
@@ -157,12 +157,12 @@ run_pytest() {
     # run_pytest <مسار الاختبارات> [معاملات إضافية...]
     local target="$1"; shift || true
     if [[ ! -e "$target" ]]; then
-        log_warn "لا يوجد $target على هذا الفرع — تخطي بوابة pytest"
-        return 0
+        log_err "لا يوجد $target — بوابة pytest مطلوبة ولا يمكن تخطيها"
+        return 1
     fi
     if [[ -z "$PYTEST_BIN" ]]; then
-        log_warn "pytest غير متاح — تخطي بوابة $target"
-        return 0
+        log_err "pytest غير متاح — لا يمكن اعتبار البوابة ناجحة"
+        return 1
     fi
     log_info "تشغيل: $PYTEST_BIN $target $*"
     if $PYTEST_BIN "$target" "$@" 2>&1 | tail -6; then
@@ -222,7 +222,7 @@ else
                     log_err "tsc وجد أخطاء"
                 fi
             else
-                log_warn "node_modules مفقود — شغّل npm install ثم أعد ./init.sh لتفعيل بوابة tsc"
+                log_err "node_modules مفقود — بوابة tsc مطلوبة ولا يمكن اعتبار التحقق ناجحاً"
             fi
             ;;
 
@@ -254,7 +254,7 @@ else
             ;;
 
         unknown)
-            log_warn "مشروع غير معروف — تم التخطي"
+            log_err "مشروع غير معروف — لا توجد بوابة تحقق موثوقة"
             ;;
     esac
 fi
