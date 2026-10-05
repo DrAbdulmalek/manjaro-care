@@ -282,7 +282,10 @@ def main():
     parser.add_argument("--next", dest="next_step", default="",
                         help="ما يجب أن يفعله الوكيل التالي")
     parser.add_argument("--no-tests", action="store_true", help="تخطي بوابات التحقق")
-    parser.add_argument("--no-mem0", action="store_true", help="تخطي الحفظ في Mem0")
+    parser.add_argument("--mem0", action="store_true",
+                        help="حفظ صريح للملخص في Mem0 الخارجي (REST API)")
+    parser.add_argument("--no-mem0", action="store_true",
+                        help="متوافق للخلفية: تخطي Mem0 (الافتراضي)")
     parser.add_argument("--output", type=Path, default=Path("session-handoff.md"))
     args = parser.parse_args()
 
@@ -314,14 +317,21 @@ def main():
 
     summary = build_summary(project, git_state, verification, args.note, args.next_step)
 
+    if not verification.get("passed", False) and not args.no_tests:
+        log("بوابة التحقق فشلت — لا يُنشأ handoff ولا يُرسل إلى Mem0", "err")
+        return 2
+
     output_path = project_dir / args.output
     output_path.write_text(summary, encoding="utf-8")
-    log(f"تم الكتابة: {output_path}", "ok")
+    log(f"تمت الكتابة: {output_path}", "ok")
 
-    if args.no_mem0:
-        log("تخطي Mem0 (--no-mem0)", "info")
-    else:
+    if args.mem0 and args.no_mem0:
+        log("لا يمكن استخدام --mem0 و--no-mem0 معاً", "err")
+        return 1
+    if args.mem0:
         save_to_mem0(summary, project, args.note)
+    else:
+        log("Mem0 غير مفعّل — الحفظ الخارجي يحتاج --mem0 صراحةً", "info")
 
     print()
     print(f"{C.BOLD}═══ انتهى ═══{C.END}")
