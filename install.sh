@@ -38,6 +38,8 @@ mkdir -p "$INSTALL_DIR"
 cp -r "${SCRIPT_DIR}/core" "$INSTALL_DIR/core"
 cp -r "${SCRIPT_DIR}/modules" "$INSTALL_DIR/modules"
 cp -r "${SCRIPT_DIR}/gui" "$INSTALL_DIR/gui"
+cp -r "${SCRIPT_DIR}/scripts" "$INSTALL_DIR/scripts"
+chmod 755 "$INSTALL_DIR/scripts/manjaro-maintenance.sh"
 # سكربت الدخول نفسه (manjaro-care الموجود في جذر المشروع) — مصدر
 # وحيد يُستخدم مباشرة، بدل توليد نسخة مكرَّرة inline هنا وفي PKGBUILD.
 # هو "يحدد موقعه" تلقائياً عبر __file__، فيعمل بشكل صحيح من أي مسار تثبيت.
@@ -68,7 +70,7 @@ echo -e "  ${GREEN}تم تثبيت القائمة${NC}"
 # ── 4. فحص التبعيات ──
 echo -e "${BOLD}[4/4] فحص التبعيات...${NC}"
 MISSING=()
-for pkg in python-pyqt5 polkit pacman; do
+for pkg in python-pyqt5 polkit pacman psmisc; do
     if ! /usr/bin/pacman -Qi "$pkg" &>/dev/null; then
         MISSING+=("$pkg")
     fi

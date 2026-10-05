@@ -34,6 +34,7 @@ from modules.mirror_rank import MirrorRankModule
 # الوحدات الأصلية
 from modules.network_reset import NetworkResetModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
+from modules.pacman_maintenance import PacmanMaintenanceModule
 from modules.pdf_toolkit import PdfToolkitModule
 from modules.performance_optimizer import PerformanceOptimizerModule
 from modules.pkg_cleanup import PackageCleanupModule
@@ -61,6 +62,7 @@ def get_all_modules():
         # معلومات وصيانة سريعة
         DashboardModule(),
         SystemInfoModule(),
+        PacmanMaintenanceModule(),
         OneClickMaintenanceModule(),
         StartupImpactModule(),
         ReportExportModule(),  # تقرير منقّى (نافذة معاينة مخصصة)

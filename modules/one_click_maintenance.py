@@ -16,6 +16,7 @@ from core.module_base import (
     Severity,
 )
 from core.privilege import run_privileged, run_unprivileged
+from modules.pacman_maintenance import PacmanMaintenanceModule
 
 log = get_logger("one_click_maintenance")
 
@@ -30,7 +31,12 @@ class OneClickMaintenanceModule(MaintenanceModule):
 
     def scan(self):
         findings = []
-        # نقوم بفحص سريع لكل الوحدات الفرعية
+        # اجعل الفحص الشامل يعكس بوابة Pacman نفسها، حتى لا يظهر
+        # "النظام سليم" بينما سيؤدي apply() إلى التوقف بسبب مشكلة Pacman.
+        pacman_scan = PacmanMaintenanceModule().scan()
+        findings.extend(pacman_scan.findings)
+
+        # نقوم بفحص سريع لبقية الوحدات الفرعية
         checks = []
 
         # 1. حزم يتيمة
@@ -58,7 +64,8 @@ class OneClickMaintenanceModule(MaintenanceModule):
                 severity=Severity.WARNING,
                 actionable=True,
             ))
-        else:
+
+        if not findings:
             findings.append(ScanFinding(
                 title="النظام في حالة ممتازة ✅",
                 detail="لا توجد مهام صيانة مطلوبة.",
@@ -70,20 +77,28 @@ class OneClickMaintenanceModule(MaintenanceModule):
 
     def preview(self):
         return [
-            PreviewStep(description="1. تنظيف الحزم اليتيمة", command="pacman -Rns <قائمة pacman -Qdtq> --noconfirm"),
-            PreviewStep(description="2. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
-            PreviewStep(description="3. تنظيف cache pacman", command="paccache -rk2"),
-            PreviewStep(description="4. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
-            PreviewStep(description="5. fstrim", command="fstrim -v /"),
-            # تنبيه: كانت المعاينة هنا تعرض "pacman -Sy" بينما التنفيذ الفعلي
-            # هو sync (تفريغ مخازن النظام) — صُحّحت المعاينة لتطابق التنفيذ.
-            # pacman -Sy بدون -u (تحديث جزئي) لا يُنفَّذ هنا عمداً.
-            PreviewStep(description="6. تفريغ مخازن الكتابة في القرص", command="sync"),
+            PreviewStep(description="1. فحص/إصلاح قفل pacman وإعداد المستودعات عند الحاجة", command="pacman-guard: no active pacman; remove stale db.lck only after fuser check"),
+            PreviewStep(description="2. تحديث المرايا", command="pacman-mirrors --fasttrack 5"),
+            # ملاحظة أمان: التحديث هنا ‎-Syu كامل وليس ‎-Sy الجزئي (partial upgrade)
+            # — لا يُنفَّذ ‎-Sy بدون ‎-u عمداً، والمعاينة تطابق التنفيذ.
+            PreviewStep(description="3. مزامنة قواعد البيانات وترقية النظام", command="pacman -Syu"),
+            PreviewStep(description="4. تنظيف الحزم اليتيمة", command="pacman -Rns <قائمة pacman -Qdtq> --noconfirm"),
+            PreviewStep(description="5. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
+            PreviewStep(description="6. تنظيف cache pacman", command="paccache -rk2"),
+            PreviewStep(description="7. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
+            PreviewStep(description="8. fstrim", command="fstrim -v /"),
+            PreviewStep(description="9. تفريغ مخازن الكتابة في القرص", command="sync"),
         ]
 
     def apply(self):
         logs = []
         success = True
+
+        # Pacman guard + mirror refresh + full system update first.
+        pm = PacmanMaintenanceModule().apply()
+        logs.append("🛠️ Pacman: " + pm.message + "\n" + pm.log_output)
+        if not pm.success:
+            return ApplyResult(False, "توقفت الصيانة قبل التنظيف لأن صيانة Pacman لم تنجح.", "\n".join(logs))
 
         # 1. حزم يتيمة — الحذف عبر argv صريح بلا shell: نجلب قائمة الحزم
         # اليتيمة بأنفسنا ثم نمررها عناصر منفصلة (كانت سابقاً $(pacman -Qdtq)
