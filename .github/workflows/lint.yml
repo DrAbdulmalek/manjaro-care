@@ -43,39 +43,21 @@ jobs:
       - name: Python AST check
         run: |
           FAIL=0
-          for f in $(find . -name '*.py' -not -path './.git/*'); do
-            if python3 -c "import ast; ast.parse(open('$f').read())" 2>&1; then
+          while IFS= read -r -d '' f; do
+            if python3 -c "import ast; ast.parse(open('$f', encoding='utf-8').read())" 2>&1; then
               echo "OK: $f"
             else
               echo "FAIL: $f"
               FAIL=1
             fi
-          done
+          done < <(find . -name '*.py' -not -path './.git/*' -print0)
           exit $FAIL
 
       - name: Check no trailing whitespace in shell scripts
         run: |
           FAIL=0
           for f in install.sh uninstall.sh scripts/manjaro-maintenance.sh; do
-            if grep -n '[[:space:]]
-
-      - name: Verify install.sh checks for root
-        run: |
-          if grep -q 'EUID -ne 0' install.sh 2>/dev/null; then
-            echo "OK: install.sh checks for root"
-          else
-            echo "FAIL: install.sh missing root check"
-            exit 1
-          fi
-
-      - name: Verify .gitignore exists
-        run: |
-          if [ -f .gitignore ]; then
-            echo "OK: .gitignore exists"
-          else
-            echo "FAIL: .gitignore missing"
-            exit 1
-          fi "$f" 2>/dev/null; then
+            if grep -n '[[:space:]]$' "$f" 2>/dev/null; then
               echo "FAIL: trailing whitespace in $f"
               FAIL=1
             else
