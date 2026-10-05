@@ -34,4 +34,4 @@ PyMuPDF، PyQt5، TriliumNext، Logseq، OpenProject، Taiga — لا تُدمج
 - main على GitHub: ممنوع الدفع إليه مباشرة (فروع فقط + PR مسودة).
 - main محلي في مساحة عمل بلا remote: لا يُدفع لاحقًا إلا عبر فرع.
 - الملفات المشتركة تُثبت على main المحلي فقط عند غياب remote كليًا.
-- **التوزيع المشترك يمر عبر sync-harness.sh — بلا force، بلا حذف.**
+.**
