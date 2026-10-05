@@ -2,16 +2,22 @@
 # -*- coding: utf-8 -*-
 """modules/duplicate_finder.py — البحث عن الملفات المكررة."""
 from __future__ import annotations
+
 import hashlib
 import os
-from pathlib import Path
 from collections import defaultdict
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_unprivileged
+from pathlib import Path
+
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
 
 log = get_logger("duplicate_finder")
 
@@ -50,7 +56,7 @@ def _find_duplicates(paths: list[str], min_size: int = 1024) -> dict[str, list[s
 
     # الآن نحسب الـ hash للملفات التي لها نفس الحجم
     duplicates = defaultdict(list)
-    for fsize, file_list in size_map.items():
+    for _fsize, file_list in size_map.items():
         if len(file_list) < 2:
             continue
         hashes = defaultdict(list)
@@ -89,7 +95,7 @@ class DuplicateFinderModule(MaintenanceModule):
         total_dups = 0
         total_size = 0
 
-        for h, files in dups.items():
+        for _h, files in dups.items():
             # نحسب الحجم المهدرة (الملفات الزائدة)
             try:
                 fsize = Path(files[0]).stat().st_size
@@ -127,7 +133,7 @@ class DuplicateFinderModule(MaintenanceModule):
         freed = 0
         logs = []
 
-        for h, files in dups.items():
+        for _h, files in dups.items():
             # نحتفظ بالأقدم ونحذف الباقي
             sorted_files = sorted(files, key=lambda p: Path(p).stat().st_mtime)
             for to_delete in sorted_files[1:]:

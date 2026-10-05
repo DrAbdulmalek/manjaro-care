@@ -9,12 +9,20 @@ license=('MIT')
 depends=('python-pyqt5' 'polkit' 'pacman' 'python' 'psmisc')
 optdepends=(
     'pacman-contrib: لـ paccache (تنظيف الكاش)'
-    'pacman-mirrors: لترتيب المرايا حسب السرعة'
+    'pacman-mirrors: لترتيب المرايا حسب السرعة (مانجارو)'
+    'reflector: لترتيب المرايا حسب السرعة (آرتش)'
     'reset-net: لوحدة إعادة ضبط الشبكة'
 )
-makedepends=('git')
+# makedepends: أُزيل 'git' — المصدر أرشيف tarball من وسم إصدار
+# (لا git clone في أي مرحلة بناء، فراجع docs/PACKAGING.md).
 source=("$pkgname-$pkgver.tar.gz::https://github.com/DrAbdulmalek/manjaro-care/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+# ⚠ sha256sums: لا تتركها SKIP في إصدار منشور! بعد وسم الإصدار ولّد
+# البصمة الحقيقية:
+#   updpkgsums
+# أو يدوياً:
+#   curl -L "https://github.com/DrAbdulmalek/manjaro-care/archive/refs/tags/v$pkgver.tar.gz" | sha256sum
+# التفاصيل الكاملة: docs/PACKAGING.md
+sha256sums=('SKIP')  # TODO(owner): استبدلها بالبصمة الفعلية قبل النشر (انظر أعلاه)
 
 prepare() {
     cd "$srcdir/$pkgname-$pkgver"

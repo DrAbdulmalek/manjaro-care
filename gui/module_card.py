@@ -17,14 +17,19 @@ Wise Care 365 — أخضر=سليم، أصفر=تنبيه، أحمر=حرج.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QMessageBox, QTextEdit, QSizePolicy,
-)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 
-from core.module_base import MaintenanceModule, Severity, ScanResult
+from core.module_base import MaintenanceModule, ScanResult, Severity
 from gui.workers import FunctionWorker
 
 _SEVERITY_COLORS = {
@@ -213,7 +218,29 @@ class ModuleCard(QFrame):
     # ---------------------------------------------------------------
     # التطبيق — في خيط خلفي أيضاً (قد ينتظر مصادقة polkit لثوانٍ)
     # ---------------------------------------------------------------
+    def set_dry_run(self) -> None:
+        """يُستدعى من MainWindow في وضع المعاينة الجافة: يعطّل زر «تطبيق»
+        نهائياً لهذه البطاقة. طبقة الحماية رقم 2 (الأولى: الوحدات تفحص
+        is_dry_run() بنفسها، والأخيرة: بوابة core/privilege.py)."""
+        self.apply_btn.setEnabled(False)
+        self.apply_btn.setToolTip(
+            "معطّل في وضع dry-run — لن يُنفَّذ أي تعديل على النظام"
+        )
+
     def _on_apply_clicked(self) -> None:
+        # طبقة الحماية الإضافية: حتى لو استُدعي هذا الموصل برمجياً في
+        # وضع dry-run، نرفض التنفيذ ونشرح بدل الاعتماد على تعطيل الزر فقط.
+        from core.runtime import is_dry_run
+
+        if is_dry_run():
+            QMessageBox.information(
+                self,
+                "وضع المعاينة الجافة",
+                "وضع dry-run مفعّل — لن يُنفَّذ أي تعديل. راجع نتائج «معاينة» لرؤية ما كان سيُنفَّذ، "
+                "وأعد التشغيل بدون --dry-run للتنفيذ الفعلي.",
+            )
+            return
+
         confirm = QMessageBox.question(
             self,
             "تأكيد التنفيذ",

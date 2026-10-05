@@ -7,14 +7,18 @@ modules/locale_manager.py
 مستوحى من Garuda Assistant → Locale/Keyboard.
 """
 from __future__ import annotations
-import re
 
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_unprivileged
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("locale_manager")
 
@@ -39,7 +43,6 @@ class LocaleManagerModule(MaintenanceModule):
 
     def scan(self) -> ScanResult:
         locales = _current_locales()
-        active = _active_locale()
         findings: list[ScanFinding] = []
 
         has_utf8 = any("utf8" in loc.lower() or "utf-8" in loc.lower() for loc in locales)

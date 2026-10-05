@@ -4,28 +4,42 @@
 gui/dashboard_widget.py — لوحة قيادة النظام التفاعلية مع التنبيهات الذكية.
 """
 from __future__ import annotations
+
 import json
-import os
 import time
 from collections import deque
 from datetime import datetime
 from pathlib import Path
 
 import psutil
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QWidget, QGridLayout, QFrame, QSizePolicy, QSplitter,
-    QTextEdit, QListWidget, QListWidgetItem, QSpinBox,
-    QFormLayout, QGroupBox, QCheckBox, QTabWidget, QSystemTrayIcon,
-    QAction, QMenu, QMessageBox, QFileDialog,
-)
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread
-from PyQt5.QtGui import QColor, QFont, QIcon, QPalette
-
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import (
+    QAction,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSpinBox,
+    QSplitter,
+    QSystemTrayIcon,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.privilege import run_unprivileged
 from core.logger import get_logger
 
 log = get_logger("dashboard_widget")

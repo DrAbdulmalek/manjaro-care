@@ -16,14 +16,20 @@ modules/kernel_cleanup.py
 """
 
 from __future__ import annotations
+
 import re
 
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_unprivileged, run_privileged
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("kernel_cleanup")
 
@@ -67,9 +73,26 @@ def _running_kernel_package() -> str | None:
     return None
 
 
-def _kernel_version_key(pkg_name: str) -> int:
+def _kernel_version_key(pkg_name: str) -> tuple[int, int]:
+    """
+    مفتاح ترتيب النسخ كـ (major, minor) لا كعدد صحيح مدموج.
+
+    إصلاح خلل حقيقي كشفته الاختبارات: المقارنة السابقة كانت
+    int("515") > int("66") أي 5.15 "أحدث" من 6.6 — فتُحمى النواة
+    الخاطئة ويُحذف أحدث إصدار فعلياً. اصطلاح مانجارو: الرقمان
+    الأخيران هما minor (linux66=6.6، linux515=5.15، linux419=4.19).
+    """
     match = _KERNEL_PKG_RE.match(pkg_name)
-    return int(match.group(1)) if match else 0
+    if not match:
+        return (0, 0)
+    digits = match.group(1)
+    if len(digits) >= 3 and digits.isdigit():
+        return (int(digits[:-2]), int(digits[-2:]))
+    if len(digits) == 2 and digits.isdigit():
+        return (int(digits[0]), int(digits[1]))
+    if digits.isdigit():
+        return (int(digits), 0)
+    return (0, 0)
 
 
 class KernelCleanupModule(MaintenanceModule):

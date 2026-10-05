@@ -2,13 +2,20 @@
 # -*- coding: utf-8 -*-
 """modules/one_click_maintenance.py — صيانة بنقرة واحدة تجمع كل شيء."""
 from __future__ import annotations
+
 import shutil
+
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_privileged, run_unprivileged
-from core.logger import get_logger
 from modules.pacman_maintenance import PacmanMaintenanceModule
 
 log = get_logger("one_click_maintenance")
@@ -72,12 +79,15 @@ class OneClickMaintenanceModule(MaintenanceModule):
         return [
             PreviewStep(description="1. فحص/إصلاح قفل pacman وإعداد المستودعات عند الحاجة", command="pacman-guard: no active pacman; remove stale db.lck only after fuser check"),
             PreviewStep(description="2. تحديث المرايا", command="pacman-mirrors --fasttrack 5"),
+            # ملاحظة أمان: التحديث هنا ‎-Syu كامل وليس ‎-Sy الجزئي (partial upgrade)
+            # — لا يُنفَّذ ‎-Sy بدون ‎-u عمداً، والمعاينة تطابق التنفيذ.
             PreviewStep(description="3. مزامنة قواعد البيانات وترقية النظام", command="pacman -Syu"),
-            PreviewStep(description="4. تنظيف الحزم اليتيمة", command="pacman -Rns $(pacman -Qdtq) --noconfirm"),
+            PreviewStep(description="4. تنظيف الحزم اليتيمة", command="pacman -Rns <قائمة pacman -Qdtq> --noconfirm"),
             PreviewStep(description="5. تقليص سجلات journal", command="journalctl --vacuum-time=7d"),
             PreviewStep(description="6. تنظيف cache pacman", command="paccache -rk2"),
             PreviewStep(description="7. تنظيف Flatpak unused", command="flatpak uninstall --unused -y"),
             PreviewStep(description="8. fstrim", command="fstrim -v /"),
+            PreviewStep(description="9. تفريغ مخازن الكتابة في القرص", command="sync"),
         ]
 
     def apply(self):
@@ -90,9 +100,16 @@ class OneClickMaintenanceModule(MaintenanceModule):
         if not pm.success:
             return ApplyResult(False, "توقفت الصيانة قبل التنظيف لأن صيانة Pacman لم تنجح.", "\n".join(logs))
 
-        # 1. حزم يتيمة
-        r = run_privileged(["bash", "-c", "pacman -Rns $(pacman -Qdtq) --noconfirm 2>/dev/null || true"])
-        logs.append("🗑️ الحزم اليتيمة: " + (r.stdout[:200] if r.stdout else "تم"))
+        # 1. حزم يتيمة — الحذف عبر argv صريح بلا shell: نجلب قائمة الحزم
+        # اليتيمة بأنفسنا ثم نمررها عناصر منفصلة (كانت سابقاً $(pacman -Qdtq)
+        # داخل bash -c — توسعة shell غير ضرورية وتخالف قاعدة argv-only).
+        orphans_r = run_unprivileged(["pacman", "-Qdtq"])
+        orphans = orphans_r.stdout.split() if orphans_r.ok else []
+        if orphans:
+            r = run_privileged(["pacman", "-Rns", "--noconfirm", *orphans])
+            logs.append("🗑️ الحزم اليتيمة: " + (r.stdout[:200] if r.stdout else "تم"))
+        else:
+            logs.append("🗑️ الحزم اليتيمة: لا توجد حزم يتيمة")
 
         # 2. journal
         r = run_privileged(["journalctl", "--vacuum-time=7d"])

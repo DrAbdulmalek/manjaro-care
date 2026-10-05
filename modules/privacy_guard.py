@@ -2,14 +2,20 @@
 # -*- coding: utf-8 -*-
 """modules/privacy_guard.py — حماية الخصوصية ومسح الآثار (Advanced SystemCare)."""
 from __future__ import annotations
+
 import os
 from pathlib import Path
-from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
-)
-from core.privilege import run_unprivileged
+
 from core.logger import get_logger
+from core.module_base import (
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
+)
 
 log = get_logger("privacy_guard")
 
@@ -33,7 +39,7 @@ class PrivacyGuardModule(MaintenanceModule):
 
     def scan(self):
         findings = []
-        for key, (path, desc) in _PRIVACY_TARGETS.items():
+        for _key, (path, desc) in _PRIVACY_TARGETS.items():
             p = Path(path).expanduser()
             if p.exists():
                 size = self._get_size(p)
@@ -104,7 +110,7 @@ class PrivacyGuardModule(MaintenanceModule):
             return path.stat().st_size
         total = 0
         try:
-            for root, dirs, files in os.walk(path):
+            for root, _dirs, files in os.walk(path):
                 for f in files:
                     fp = Path(root) / f
                     if fp.exists():

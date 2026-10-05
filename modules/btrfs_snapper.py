@@ -8,14 +8,20 @@ modules/btrfs_snapper.py
 مستوحى من Garuda Assistant → BTRFS Assistant / Snapper.
 """
 from __future__ import annotations
+
 import shutil
 
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_unprivileged
-from core.logger import get_logger
 
 log = get_logger("btrfs_snapper")
 
@@ -26,17 +32,24 @@ def _has_btrfs_root() -> bool:
 
 
 def _snapper_list() -> list[tuple[str, str]]:
-    """يُرجع قائمة (رقم, وصف)."""
+    """يُرجع قائمة (رقم, وصف).
+
+    أعمدة `snapper -c root list` مفصولة بـ | بالترتيب:
+      0:#  1:Type  2:Pre#  3:Date  4:User  5:Cleanup  6:Description  7:Userdata
+    الإصلاح: كان الوصف يُقرأ من العمود 3 وهو عمود التاريخ — الصحيح
+    هو العمود 6 (Description).
+    """
     if not shutil.which("snapper"):
         return []
     r = run_unprivileged(["snapper", "-c", "root", "list"])
     snapshots = []
-    for line in r.stdout.splitlines()[2:]:  # تخطي العنوان
+    for line in r.stdout.splitlines()[2:]:  # تخطي سطر العنوان والفاصل
         parts = line.split("|")
-        if len(parts) >= 4:
+        if len(parts) >= 7:
             num = parts[0].strip()
-            desc = parts[3].strip()
-            snapshots.append((num, desc))
+            desc = parts[6].strip()
+            if num.isdigit():
+                snapshots.append((num, desc))
     return snapshots
 
 

@@ -6,22 +6,34 @@ gui/file_shredder_dialog.py — نافذة الحذف الآمن (Secure File Sh
 🔐 يدعم التشفير بالكلمة السرية قبل الحذف (Password Protect).
 """
 from __future__ import annotations
+
 import os
 import random
-import shutil
-import tempfile
 from pathlib import Path
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QMessageBox,
-    QSpinBox, QGroupBox, QFormLayout, QFileDialog, QProgressBar,
-    QLineEdit, QCheckBox, QComboBox,
-)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSpinBox,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+)
 
-from core.privilege import run_privileged
 from core.logger import get_logger
+from core.privilege import run_privileged
 
 log = get_logger("file_shredder_dialog")
 

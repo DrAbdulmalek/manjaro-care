@@ -2,15 +2,22 @@
 # -*- coding: utf-8 -*-
 """modules/system_cleaner.py — التنظيف العميق للنظام (CCleaner for Linux)."""
 from __future__ import annotations
-import shutil
+
 import os
+import shutil
 from pathlib import Path
+
+from core.logger import get_logger
 from core.module_base import (
-    MaintenanceModule, ScanResult, ScanFinding, Severity,
-    PreviewStep, ApplyResult, RiskLevel,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_privileged, run_unprivileged
-from core.logger import get_logger
 
 log = get_logger("system_cleaner")
 
@@ -74,7 +81,7 @@ class SystemCleanerModule(MaintenanceModule):
         findings = []
         total_size = 0
 
-        for key, (path, needs_root, desc) in _CLEAN_TARGETS.items():
+        for _key, (path, needs_root, desc) in _CLEAN_TARGETS.items():
             p = _expand(path)
             size = _get_size(p)
             if size > 0:
@@ -111,7 +118,7 @@ class SystemCleanerModule(MaintenanceModule):
             if p.exists():
                 if key == "journal_old":
                     steps.append(PreviewStep(
-                        description=f"تقليص سجلات journal إلى 7 أيام",
+                        description="تقليص سجلات journal إلى 7 أيام",
                         command="journalctl --vacuum-time=7d",
                     ))
                 elif needs_root:
@@ -130,7 +137,7 @@ class SystemCleanerModule(MaintenanceModule):
         logs = []
         success = True
 
-        for key, (path, needs_root, desc) in _CLEAN_TARGETS.items():
+        for key, (path, needs_root, _desc) in _CLEAN_TARGETS.items():
             p = _expand(path)
             if not p.exists():
                 continue

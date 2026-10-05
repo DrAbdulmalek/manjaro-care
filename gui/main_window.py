@@ -10,26 +10,34 @@ Advanced SystemCare)، وتحته قائمة قابلة للتمرير من بط
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame,
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.scanner import run_full_scan, SystemHealthReport
 from core.logger import get_logger, log_file_path
-from modules.registry import get_all_modules
+from core.scanner import SystemHealthReport, run_full_scan
 from gui.module_card import ModuleCard
 from gui.workers import FunctionWorker
+from modules.registry import get_all_modules
 
 log = get_logger("main_window")
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, dry_run: bool = False):
         super().__init__()
-        self.setWindowTitle("Manjaro Care — مركز صيانة النظام")
+        self.dry_run = bool(dry_run)
+        title_suffix = "  — [dry-run]" if self.dry_run else ""
+        self.setWindowTitle("Manjaro Care — مركز صيانة النظام" + title_suffix)
         self.resize(760, 640)
         self.setLayoutDirection(Qt.RightToLeft)
 
@@ -48,6 +56,23 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(central)
         outer.setContentsMargins(20, 20, 20, 20)
         outer.setSpacing(16)
+
+        # ---- شريط وضع المعاينة الجافة (dry-run) ----
+        # القاعدة: في هذا الوضع لا يُنفَّذ أي تعديل إطلاقاً — يُعرض فقط
+        # ما كان سيُنفَّذ (معاينات البطاقات + سطر [DRY-RUN] في اللوغ)،
+        # وزر «تطبيق» معطّل في كل البطاقات (طبقة 2 من 3 — راجع core/runtime.py).
+        if self.dry_run:
+            dry_banner = QLabel(
+                "⚠ وضع المعاينة الجافة (dry-run): لن يُنفَّذ أي تعديل على النظام. "
+                "اضغط «فحص» ثم «معاينة» في أي بطاقة لرؤية ما كان سيُنفَّذ — زر «تطبيق» معطّل."
+            )
+            dry_banner.setWordWrap(True)
+            dry_banner.setLayoutDirection(Qt.RightToLeft)
+            dry_banner.setStyleSheet(
+                "background-color: #4a3a10; color: #ffca28; border: 1px solid #ffca28; "
+                "border-radius: 8px; padding: 8px; font-weight: bold;"
+            )
+            outer.addWidget(dry_banner)
 
         # ---- لوحة الصحة العامة ----
         health_frame = QFrame()
@@ -96,6 +121,8 @@ class MainWindow(QMainWindow):
 
         for module in self.modules:
             card = ModuleCard(module)
+            if self.dry_run:
+                card.set_dry_run()
             self.cards.append(card)
             modules_layout.addWidget(card)
 
@@ -118,7 +145,7 @@ class MainWindow(QMainWindow):
 
         # حدّث كل بطاقة بنتيجتها الخاصة دون طلب فحص جديد منها (نتفادى
         # تشغيل نفس الفحص مرتين)
-        for card, result in zip(self.cards, report.results):
+        for card, result in zip(self.cards, report.results, strict=False):
             card._last_scan = result
             card._render_scan_result(result)
             has_actionable = any(f.actionable for f in result.findings)

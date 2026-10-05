@@ -14,11 +14,13 @@ polkit يعطي مصادقة رسومية واحدة والمستخدم يبقى
 """
 
 from __future__ import annotations
+
 import shutil
 import subprocess
 from dataclasses import dataclass
 
 from core.logger import get_logger
+from core.runtime import is_dry_run
 
 log = get_logger("privilege")
 
@@ -43,7 +45,7 @@ def run_unprivileged(args: list[str], timeout: int = 30) -> CommandResult:
     log.debug("تنفيذ أمر عادي: %s", " ".join(args))
     try:
         proc = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout
+            args, capture_output=True, text=True, timeout=timeout, check=False
         )
         return CommandResult(proc.returncode, proc.stdout, proc.stderr)
     except FileNotFoundError as e:
@@ -58,7 +60,19 @@ def run_privileged(args: list[str], timeout: int = 300) -> CommandResult:
     """
     تنفيذ أمر بصلاحيات جذر عبر pkexec. يفتح نافذة مصادقة polkit
     الرسومية (نفس ما اعتاده المستخدم من تطبيقات KDE الأخرى).
+
+    وضع dry-run (core/runtime.py): عند تفعيله لا يُنفَّذ هذا الأمر
+    إطلاقاً — تُرجع الدالة نتيجة موسومة [DRY-RUN] دون لمس النظام.
+    هذا صمام أمان أخير (طبقة 3)؛ الواجهة تعطّل apply أصلاً والوحدات
+    الجيدة تفحص is_dry_run() بنفسها وتُرجع رسالة صادقة قبل الوصول
+    إلى هنا. الفحص قبل فحص توفر pkexec كي يعمل dry-run حتى بلا
+    polkit مثبت (بيئات CI مثلاً).
     """
+    if is_dry_run():
+        msg = "[DRY-RUN] لم يُنفَّذ: " + " ".join(args)
+        log.info(msg)
+        return CommandResult(0, msg, "")
+
     if not _pkexec_available():
         msg = "الأداة pkexec غير مثبتة — مطلوبة لتنفيذ أي إجراء بصلاحيات جذر."
         log.error(msg)
@@ -68,7 +82,7 @@ def run_privileged(args: list[str], timeout: int = 300) -> CommandResult:
     log.info("تنفيذ أمر مرتفع الصلاحية: %s", " ".join(args))
     try:
         proc = subprocess.run(
-            full_cmd, capture_output=True, text=True, timeout=timeout
+            full_cmd, capture_output=True, text=True, timeout=timeout, check=False
         )
         if proc.returncode == 0:
             log.info("نجح: %s", " ".join(args))

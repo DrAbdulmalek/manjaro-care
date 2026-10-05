@@ -10,13 +10,20 @@ gui/startup_dialog.py
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QHeaderView, QMessageBox,
-)
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
 
-from modules.startup_manager import list_entries, toggle_entry, AutostartEntry
+from modules.startup_manager import AutostartEntry, list_entries, toggle_entry
 
 
 class StartupManagerDialog(QDialog):

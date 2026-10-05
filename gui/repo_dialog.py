@@ -18,16 +18,24 @@ import re
 import shutil
 from pathlib import Path
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QCheckBox,
-    QMessageBox, QGroupBox, QFrame,
-)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
 
-from core.privilege import run_unprivileged, run_privileged
 from core.logger import get_logger
+from core.privilege import run_privileged
 
 log = get_logger("repo_dialog")
 
@@ -334,7 +342,7 @@ class RepoManagerDialog(QDialog):
         self.apply_btn.setEnabled(changed)
         if changed:
             self.status_label.setText(
-                f"تغييرات معلّقة — اضغط «تطبيق التغييرات» للحفظ."
+                "تغييرات معلّقة — اضغط «تطبيق التغييرات» للحفظ."
             )
         else:
             self.status_label.setText("لا تغييرات معلّقة.")
