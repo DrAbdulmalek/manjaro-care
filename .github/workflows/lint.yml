@@ -91,5 +91,3 @@ jobs:
             echo "FAIL: .gitignore missing"
             exit 1
           fi
-
-          for f in install.sh uninstall.sh scripts/manjaro-maintenance.sh; do
