@@ -71,10 +71,14 @@ gate_pytest() {
     local target="$1"; shift || true
     GATE_NAME="pytest"
     if [[ ! -e "$target" ]]; then
-        GATE_OK=1; GATE_OUT="لا يوجد $target على هذا الفرع — تخطي"
-        return 0
+        GATE_OK=0; GATE_OUT="لا يوجد $target — بوابة pytest مطلوبة ولا يمكن تخطيها"
+        return 1
     fi
-    if [[ -n "$PYTEST_BIN" ]] && $PYTEST_BIN "$target" -q --tb=short "$@" >/tmp/verify_gate.log 2>&1; then
+    if [[ -z "$PYTEST_BIN" ]]; then
+        GATE_OK=0; GATE_OUT="pytest غير متاح — لا يمكن اعتبار البوابة ناجحة"
+        return 1
+    fi
+    if $PYTEST_BIN "$target" -q --tb=short "$@" >/tmp/verify_gate.log 2>&1; then
         GATE_OK=1; GATE_OUT="$(tail -2 /tmp/verify_gate.log)"
     else
         GATE_OK=0; GATE_OUT="$(tail -4 /tmp/verify_gate.log 2>/dev/null || echo 'pytest غير متاح أو فشل')"
@@ -147,11 +151,11 @@ if [[ $QUICK -eq 0 ]]; then
                     GATE_OK=0; GATE_OUT="$(tail -4 /tmp/verify_gate.log)"
                 fi
             else
-                GATE_OK=1; GATE_OUT="node_modules مفقود — تخطي (شغّل npm install)"
+                GATE_OK=0; GATE_OUT="node_modules مفقود — بوابة tsc مطلوبة ولا يمكن اعتبار التحقق ناجحاً"
             fi
             ;;
         *)
-            GATE_NAME="none"; GATE_OK=1; GATE_OUT="مشروع غير معروف — لا بوابة"
+            GATE_NAME="none"; GATE_OK=0; GATE_OUT="مشروع غير معروف — لا توجد بوابة تحقق موثوقة"
             ;;
     esac
 fi
