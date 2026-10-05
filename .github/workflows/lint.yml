@@ -57,11 +57,32 @@ jobs:
         run: |
           FAIL=0
           for f in install.sh uninstall.sh scripts/manjaro-maintenance.sh; do
-            if grep -rn '[[:space:]]$' "$f" 2>/dev/null; then
-              echo "WARN: trailing whitespace in $f"
+            if grep -n '[[:space:]]
+
+      - name: Verify install.sh checks for root
+        run: |
+          if grep -q 'EUID -ne 0' install.sh 2>/dev/null; then
+            echo "OK: install.sh checks for root"
+          else
+            echo "FAIL: install.sh missing root check"
+            exit 1
+          fi
+
+      - name: Verify .gitignore exists
+        run: |
+          if [ -f .gitignore ]; then
+            echo "OK: .gitignore exists"
+          else
+            echo "FAIL: .gitignore missing"
+            exit 1
+          fi "$f" 2>/dev/null; then
+              echo "FAIL: trailing whitespace in $f"
+              FAIL=1
+            else
+              echo "OK: $f"
             fi
           done
-          echo "Done"
+          exit $FAIL
 
       - name: Verify install.sh checks for root
         run: |
