@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  manjaro-care — أداة صيانة مانجارو مع أرشفة تلقائية للتقارير على GitHub
+#
+#  الاستخدام:
+#     manjaro-care                → القائمة التفاعلية
+#     manjaro-care doctor         → فحص صحي شامل (قراءة فقط)
+#     manjaro-care fix            → إصلاح المشاكل الشائعة
+#     manjaro-care clean          → تنظيف الكاش واليتيمات وjournal
+#     manjaro-care update         → تحديث النظام (مع حماية هوك timeshift)
+#     manjaro-care all            → صيانة كاملة: doctor → fix → clean → update
+#     manjaro-care sync           → رفع التقارير إلى GitHub الآن
+#     manjaro-care last           → عرض آخر تقرير
+#     manjaro-care config         → إعداد/تجديد توكن GitHub
+#     manjaro-care --auto         → صيانة كاملة صامتة (للجدولة عبر timer/cron)
+#
+#  الخيارات:
+#     --auto      وضع غير تفاعلي بقيم آمنة (مناسب للجدولة)
+#     --yes       الموافقة على جميع الأسئلة
+#     --no-push   تعطيل الرفع التلقائي إلى GitHub
+#     --mirrors   ترتيب المرايا قبل التحديث
+#     --no-color  تعطيل الألوان
+# =============================================================================
+set -u -o pipefail
+
+MC_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
+export MC_ROOT
+
+# shellcheck source=lib/common.sh
+source "$MC_ROOT/lib/common.sh"
+for _m in health fix clean update sync; do
+  # shellcheck source=/dev/null
+  source "$MC_ROOT/modules/$_m.sh"
+done
+load_config
+
+usage() {
+  cat <<EOF
+manjaro-care v${MC_VERSION} — Manjaro maintenance with GitHub report archive
+
+usage: manjaro-care [command] [options]
+
+commands:
+  doctor        full read-only health check
+  fix           repair common problems (locks, failed units, broken libs, timeshift hook)
+  clean         caches, orphans, journal vacuum, coredumps
+  update        full system upgrade with pre/post checks
+  all           doctor → fix → clean → update
+  sync          push reports to github.com/${MC_GH_USER}/${MC_GH_REPO} now
+  last          show latest report summary
+  config        set / renew the GitHub token
+  menu          interactive menu
+  help          this help
+
+options:
+  --auto        non-interactive mode with safe defaults (for systemd timer / cron)
+  --yes         answer yes to every prompt
+  --no-push     skip GitHub sync
+  --mirrors     rank mirrors before updating (pacman-mirrors --fasttrack 5)
+  --no-color    disable colors
+  -v, --version show version
+
+reports: ${MC_REPORTS_DIR}
+config  : ${MC_CONFIG_FILE}
+token   : ${MC_TOKEN_FILE}
+EOF
+}
+
+# ------------------------------------------------------------ token setup ----
+cmd_config_token() {
+  echo
+  echo "GitHub Personal Access Token — مطلوب صلاحية 'repo' (classic) أو Contents: Read & write (fine-grained)"
+  echo "أنشئ توكناً من: https://github.com/settings/tokens"
+  echo
+  printf '%s' "ألصق التوكن (سيُخفى أثناء الكتابة): "
+  local tok
+  if read -r -s tok; then
+    echo
+    if [ -z "$tok" ]; then
+      err "empty token"
+      return 1
+    fi
+    info "verifying token with GitHub..."
+    local login
+    login="$(curl -s -m 15 -H "Authorization: token $tok" https://api.github.com/user | grep -m1 '"login"' | cut -d'"' -f4)"
+    if [ -z "$login" ]; then
+      err "token verification failed — not saved"
+      return 1
+    fi
+    ok "token OK — GitHub account: $login"
+    if [ "$login" != "$MC_GH_USER" ]; then
+      warn "account ($login) differs from configured user ($MC_GH_USER)"
+      if ask_yes "update config to use '$login'?" "y"; then
+        MC_GH_USER="$login"
+        mkdir -p "$MC_CONFIG_DIR"
+        printf 'MC_GH_USER=%s\nMC_GH_REPO=%s\nMC_GH_BRANCH=%s\nMC_KEEP_REPORTS=%s\n' \
+          "$MC_GH_USER" "$MC_GH_REPO" "$MC_GH_BRANCH" "$MC_KEEP_REPORTS" > "$MC_CONFIG_FILE"
+        chmod 600 "$MC_CONFIG_FILE"
+      fi
+    fi
+    mkdir -p "$MC_CONFIG_DIR"
+    printf '%s\n' "$tok" > "$MC_TOKEN_FILE"
+    chmod 600 "$MC_TOKEN_FILE"
+    MC_TOKEN="$tok"
+    ok "token saved to $MC_TOKEN_FILE (mode 600)"
+  else
+    echo
+    err "no token entered"
+    return 1
+  fi
+  return 0
+}
+
+# ------------------------------------------------------------- last report ---
+cmd_last() {
+  local latest
+  latest="$(find "$MC_REPORTS_DIR" -name summary.md -type f 2>/dev/null | sort | tail -1)"
+  if [ -z "$latest" ]; then
+    info "no reports yet — run: manjaro-care doctor"
+    return 0
+  fi
+  info "latest report: $latest"
+  echo
+  cat "$latest"
+}
+
+# ------------------------------------------------------------ finish a run ---
+finish_run() {
+  local task_status="${1:-done}"
+  end_report "$task_status"
+  sync_push
+}
+
+# ------------------------------------------------------------ full cycle -----
+run_all() {
+  local failures=0
+  cmd_doctor   || failures=$((failures+1))
+  cmd_fix      || failures=$((failures+1))
+  cmd_clean    || failures=$((failures+1))
+  cmd_update   || failures=$((failures+1))
+  if [ "$failures" -eq 0 ]; then
+    end_report "all stages completed"
+  else
+    end_report "completed with $failures failing stage(s)"
+  fi
+  sync_push
+  return 0
+}
+
+# ------------------------------------------------------------- main menu -----
+show_menu() {
+  while true; do
+    echo
+    printf '%smanjaro-care v%s%s — صيانة مانجارو\n' "$C_BOLD" "$MC_VERSION" "$C_RESET"
+    printf '%sالمستودع: github.com/%s/%s%s\n' "$C_DIM" "$MC_GH_USER" "$MC_GH_REPO" "$C_RESET"
+    hr
+    printf '  %s1%s) فحص صحي شامل          (doctor)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s2%s) تحديث النظام           (update)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s3%s) تنظيف                  (clean)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s4%s) إصلاح المشاكل          (fix)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s5%s) صيانة كاملة            (all)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s6%s) رفع التقارير إلى GitHub (sync)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s7%s) عرض آخر تقرير          (last)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s8%s) إعداد توكن GitHub      (config)\n' "$C_BOLD" "$C_RESET"
+    printf '  %s0%s) خروج\n' "$C_BOLD" "$C_RESET"
+    hr
+    printf '%sاختيار [0-8]:%s ' "$C_BOLD" "$C_RESET"
+    local choice
+    read -r choice || { echo; break; }
+    case "$choice" in
+      1) cmd_doctor; finish_run "doctor done" ;;
+      2) cmd_update; finish_run "update done" ;;
+      3) cmd_clean;  finish_run "clean done" ;;
+      4) cmd_fix;    finish_run "fix done" ;;
+      5) run_all ;;
+      6) cmd_sync;   finish_run "sync done" ;;
+      7) cmd_last ;;
+      8) cmd_config_token ;;
+      0|q|Q) break ;;
+      *) info "invalid choice" ;;
+    esac
+  done
+  return 0
+}
+
+# ------------------------------------------------------------------ main -----
+main() {
+  local cmd=""
+  local args=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --auto)     MC_AUTO=1; MC_ASSUME_YES=1; shift ;;
+      -y|--yes)   MC_ASSUME_YES=1; shift ;;
+      --no-push)  MC_NO_PUSH=1; shift ;;
+      --mirrors)  MC_MIRRORS=1; shift ;;
+      --no-color) export MC_NO_COLOR=1; C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_CYAN=""; shift ;;
+      -v|--version) echo "manjaro-care v$MC_VERSION"; exit 0 ;;
+      -h|--help)  usage; exit 0 ;;
+      *)          args+=("$1"); shift ;;
+    esac
+  done
+  [ ${#args[@]} -gt 0 ] && cmd="${args[0]}"
+
+  trap mc_cleanup EXIT
+
+  if ! is_manjaro; then
+    warn "this does not look like Manjaro — the tool may misbehave on other distros"
+    if [ "$MC_AUTO" = "0" ] && ! ask_yes "continue anyway?" "n"; then
+      exit 1
+    fi
+  fi
+
+  case "$cmd" in
+    ""|menu)
+      show_menu
+      ;;
+    doctor|health)
+      cmd_doctor; finish_run "doctor done"
+      ;;
+    update|-u)
+      cmd_update; finish_run "update done"
+      ;;
+    clean|-c)
+      cmd_clean; finish_run "clean done"
+      ;;
+    fix|-f)
+      cmd_fix; finish_run "fix done"
+      ;;
+    all)
+      run_all
+      ;;
+    sync)
+      cmd_sync "${args[@]:1}"
+      finish_run "sync done"
+      ;;
+    last)
+      cmd_last
+      ;;
+    config)
+      cmd_config_token
+      ;;
+    help|--help|-h)
+      usage
+      ;;
+    *)
+      err "unknown command: $cmd"
+      usage
+      exit 1
+      ;;
+  esac
+  return 0
+}
+
+main "$@"

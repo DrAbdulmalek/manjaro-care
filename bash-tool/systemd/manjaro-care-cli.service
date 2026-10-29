@@ -1,0 +1,16 @@
+[Unit]
+Description=manjaro-care automated maintenance (doctor, fix, clean, update + GitHub sync)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# يشتغل كـ root لأن pacman والتنظيف يحتاجان صلاحيات، لكن يقرأ التوكن من
+# إعدادات المستخدم ويكتب التقارير في نسخة المستخدم من المستودع.
+Environment=MC_USER_CONFIG_DIR=/home/REPLACE_USER/.config/manjaro-care-cli
+WorkingDirectory=/home/REPLACE_USER/manjaro-care-cli
+ExecStart=/home/REPLACE_USER/manjaro-care-cli/manjaro-care --auto
+# إعادة ملكية التقارير للمستخدم بعد انتهاء التشغيل
+ExecStartPost=/bin/chown -R REPLACE_USER:REPLACE_USER /home/REPLACE_USER/manjaro-care-cli/reports
+# مهلة قصوى 3 ساعات (التحديثات الكبيرة قد تطول)
+TimeoutStartSec=3h
