@@ -3,16 +3,16 @@
 #  manjaro-care — أداة صيانة مانجارو مع أرشفة تلقائية للتقارير على GitHub
 #
 #  الاستخدام:
-#     manjaro-care                → القائمة التفاعلية
-#     manjaro-care doctor         → فحص صحي شامل (قراءة فقط)
-#     manjaro-care fix            → إصلاح المشاكل الشائعة
-#     manjaro-care clean          → تنظيف الكاش واليتيمات وjournal
-#     manjaro-care update         → تحديث النظام (مع حماية هوك timeshift)
-#     manjaro-care all            → صيانة كاملة: doctor → fix → clean → update
-#     manjaro-care sync           → رفع التقارير إلى GitHub الآن
-#     manjaro-care last           → عرض آخر تقرير
-#     manjaro-care config         → إعداد/تجديد توكن GitHub
-#     manjaro-care --auto         → صيانة كاملة صامتة (للجدولة عبر timer/cron)
+#     manjaro-care-cli                → القائمة التفاعلية
+#     manjaro-care-cli doctor         → فحص صحي شامل (قراءة فقط)
+#     manjaro-care-cli fix            → إصلاح المشاكل الشائعة
+#     manjaro-care-cli clean          → تنظيف الكاش واليتيمات وjournal
+#     manjaro-care-cli update         → تحديث النظام (مع حماية هوك timeshift)
+#     manjaro-care-cli all            → صيانة كاملة: doctor → fix → clean → update
+#     manjaro-care-cli sync           → رفع التقارير إلى GitHub الآن
+#     manjaro-care-cli last           → عرض آخر تقرير
+#     manjaro-care-cli config         → إعداد/تجديد توكن GitHub
+#     manjaro-care-cli --auto         → صيانة كاملة صامتة (للجدولة عبر timer/cron)
 #
 #  الخيارات:
 #     --auto      وضع غير تفاعلي بقيم آمنة (مناسب للجدولة)
@@ -23,7 +23,8 @@
 # =============================================================================
 set -u -o pipefail
 
-MC_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
+_self="$(readlink -f -- "${BASH_SOURCE[0]:-$0}")"   # يعمل أيضاً عبر الرابط الرمزي في ~/.local/bin
+MC_ROOT="$(cd -- "$(dirname -- "$_self")" && pwd)"
 export MC_ROOT
 
 # shellcheck source=lib/common.sh
@@ -38,7 +39,7 @@ usage() {
   cat <<EOF
 manjaro-care v${MC_VERSION} — Manjaro maintenance with GitHub report archive
 
-usage: manjaro-care [command] [options]
+usage: manjaro-care-cli [command] [options]
 
 commands:
   doctor        full read-only health check
@@ -46,15 +47,15 @@ commands:
   clean         caches, orphans, journal vacuum, coredumps
   update        full system upgrade with pre/post checks
   all           doctor → fix → clean → update
-  sync          push reports to github.com/${MC_GH_USER}/${MC_GH_REPO} now
+  sync          push reports to the PRIVATE repo github.com/${MC_GH_USER}/${MC_GH_REPO} now
   last          show latest report summary
   config        set / renew the GitHub token
   menu          interactive menu
   help          this help
 
 options:
-  --auto        non-interactive mode with safe defaults (for systemd timer / cron)
-  --yes         answer yes to every prompt
+  --auto        non-interactive: default answers; risky actions are skipped
+  --yes         answer yes to every prompt (also the risky ones — use knowingly)
   --no-push     skip GitHub sync
   --mirrors     rank mirrors before updating (pacman-mirrors --fasttrack 5)
   --no-color    disable colors
@@ -69,8 +70,8 @@ EOF
 # ------------------------------------------------------------ token setup ----
 cmd_config_token() {
   echo
-  echo "GitHub Personal Access Token — مطلوب صلاحية 'repo' (classic) أو Contents: Read & write (fine-grained)"
-  echo "أنشئ توكناً من: https://github.com/settings/tokens"
+  echo "GitHub token — الأفضل fine-grained مقصور على مستودع التقارير الخاص فقط (Contents: Read & write)"
+  echo "أنشئ توكناً من: https://github.com/settings/personal-access-tokens"
   echo
   printf '%s' "ألصق التوكن (سيُخفى أثناء الكتابة): "
   local tok
@@ -82,7 +83,7 @@ cmd_config_token() {
     fi
     info "verifying token with GitHub..."
     local login
-    login="$(curl -s -m 15 -H "Authorization: token $tok" https://api.github.com/user | grep -m1 '"login"' | cut -d'"' -f4)"
+    login="$(printf 'header = "Authorization: Bearer %s"\n' "$tok" | curl -s -m 15 -K - https://api.github.com/user | grep -m1 '"login"' | cut -d'"' -f4)"
     if [ -z "$login" ]; then
       err "token verification failed — not saved"
       return 1
@@ -93,8 +94,8 @@ cmd_config_token() {
       if ask_yes "update config to use '$login'?" "y"; then
         MC_GH_USER="$login"
         mkdir -p "$MC_CONFIG_DIR"
-        printf 'MC_GH_USER=%s\nMC_GH_REPO=%s\nMC_GH_BRANCH=%s\nMC_KEEP_REPORTS=%s\n' \
-          "$MC_GH_USER" "$MC_GH_REPO" "$MC_GH_BRANCH" "$MC_KEEP_REPORTS" > "$MC_CONFIG_FILE"
+        printf 'MC_GH_USER=%s\nMC_GH_REPO=%s\nMC_GH_BRANCH=%s\nMC_KEEP_REPORTS=%s\nMC_PUSH=%s\n' \
+          "$MC_GH_USER" "$MC_GH_REPO" "$MC_GH_BRANCH" "$MC_KEEP_REPORTS" "$MC_PUSH" > "$MC_CONFIG_FILE"
         chmod 600 "$MC_CONFIG_FILE"
       fi
     fi
@@ -103,6 +104,7 @@ cmd_config_token() {
     chmod 600 "$MC_TOKEN_FILE"
     MC_TOKEN="$tok"
     ok "token saved to $MC_TOKEN_FILE (mode 600)"
+    info "reports go to github.com/$MC_GH_USER/$MC_GH_REPO — it MUST be private. Auto-push needs MC_PUSH=1 in $MC_CONFIG_FILE"
   else
     echo
     err "no token entered"
@@ -128,7 +130,7 @@ cmd_last() {
 finish_run() {
   local task_status="${1:-done}"
   end_report "$task_status"
-  sync_push
+  sync_push auto
 }
 
 # ------------------------------------------------------------ full cycle -----
@@ -143,7 +145,7 @@ run_all() {
   else
     end_report "completed with $failures failing stage(s)"
   fi
-  sync_push
+  sync_push auto
   return 0
 }
 
@@ -173,7 +175,7 @@ show_menu() {
       3) cmd_clean;  finish_run "clean done" ;;
       4) cmd_fix;    finish_run "fix done" ;;
       5) run_all ;;
-      6) cmd_sync;   finish_run "sync done" ;;
+      6) cmd_sync;   end_report "sync done" ;;
       7) cmd_last ;;
       8) cmd_config_token ;;
       0|q|Q) break ;;
@@ -190,12 +192,12 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --auto)     MC_AUTO=1; MC_ASSUME_YES=1; shift ;;
+      --auto)     MC_AUTO=1; shift ;;
       -y|--yes)   MC_ASSUME_YES=1; shift ;;
       --no-push)  MC_NO_PUSH=1; shift ;;
       --mirrors)  MC_MIRRORS=1; shift ;;
       --no-color) export MC_NO_COLOR=1; C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_CYAN=""; shift ;;
-      -v|--version) echo "manjaro-care v$MC_VERSION"; exit 0 ;;
+      -v|--version|version) echo "manjaro-care v$MC_VERSION"; exit 0 ;;
       -h|--help)  usage; exit 0 ;;
       *)          args+=("$1"); shift ;;
     esac
@@ -204,7 +206,7 @@ main() {
 
   trap mc_cleanup EXIT
 
-  if ! is_manjaro; then
+  if [ "${MC_SKIP_OS_CHECK:-0}" != "1" ] && ! is_manjaro; then
     warn "this does not look like Manjaro — the tool may misbehave on other distros"
     if [ "$MC_AUTO" = "0" ] && ! ask_yes "continue anyway?" "n"; then
       exit 1
@@ -231,8 +233,8 @@ main() {
       run_all
       ;;
     sync)
-      cmd_sync "${args[@]:1}"
-      finish_run "sync done"
+      cmd_sync
+      end_report "sync done"
       ;;
     last)
       cmd_last

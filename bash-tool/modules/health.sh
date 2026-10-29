@@ -12,7 +12,7 @@ cmd_doctor() {
   sum_h2 "System"
   local pretty
   pretty="$(grep -E '^PRETTY_NAME' /etc/os-release 2>/dev/null | cut -d'"' -f2)"
-  info "OS      : ${pretty:-unknown} $([ "$(is_manjaro)" ] || echo '  (not Manjaro!)')"
+  info "OS      : ${pretty:-unknown} $(is_manjaro || echo '  (not Manjaro!)')"
   info "kernel  : $(uname -r)"
   info "uptime  : $(uptime -p 2>/dev/null | sed 's/up //' || echo '?')"
   sum_line "OS: ${pretty:-unknown}, kernel $(uname -r)"
@@ -47,7 +47,7 @@ cmd_doctor() {
   section "4/11 journal errors (current boot, last 60)"
   sum_h2 "Journal errors (current boot)"
   if sudo -n true 2>/dev/null || [ "$(id -u)" = "0" ]; then
-    capture sudo journalctl -p 3 -b --no-pager -n 60 || true
+    as_root journalctl -p 3 -b --no-pager -n 60 || true
   else
     info "(running without sudo → user-visible journal only)"
     capture journalctl -p 3 -b --no-pager -n 60 || true
@@ -86,7 +86,7 @@ cmd_doctor() {
 
   info "checking package files integrity (pacman -Qk — may take a minute)..."
   local bad_files
-  bad_files="$(pacman -Qk 2>/dev/null | grep 'missing files' | grep -v ': 0 missing files' | head -30 || true)"
+  bad_files="$(pacman -Qk 2>/dev/null | grep -E ', [1-9][0-9]* missing files?$' | head -30 || true)"
   if [ -n "$bad_files" ]; then
     warn "packages with missing files:"
     printf '%s\n' "$bad_files"
@@ -132,14 +132,24 @@ cmd_doctor() {
   section "8/11 timeshift"
   sum_h2 "Timeshift"
   if have timeshift; then
-    local hook="/usr/share/libalpm/hooks/timeshift-autosnap.hook"
-    if [ -f "$hook" ]; then
-      info "timeshift-autosnap hook is installed"
-      sum_line "autosnap hook: installed"
+    local hook
+    if hook="$(find_ts_hook)"; then
+      info "timeshift-autosnap hook is installed: $(basename "$hook")"
+      sum_line "autosnap hook: installed ($(basename "$hook"))"
+    fi
+    local stale
+    stale="$(ls "${hook%/*}"/*timeshift-autosnap*.mc-saved 2>/dev/null || true)"
+    if [ -z "$stale" ]; then
+      stale="$(ls /usr/share/libalpm/hooks/*timeshift-autosnap*.mc-saved 2>/dev/null || true)"
+    fi
+    if [ -n "$stale" ]; then
+      warn "autosnap hook is still DISABLED by an interrupted update: $stale"
+      warn "→ restore: sudo mv '$stale' '${stale%.mc-saved}'"
+      sum_line "**autosnap hook left disabled** ($stale) — restore it"
     fi
     if sudo -n true 2>/dev/null || [ "$(id -u)" = "0" ]; then
       local ts_out ts_rc
-      ts_out="$(sudo timeshift --list --scripted 2>&1 </dev/null)"; ts_rc=$?
+      ts_out="$(root_sh 'timeshift --list --scripted 2>&1' </dev/null)"; ts_rc=$?
       if [ $ts_rc -eq 0 ] && ! printf '%s' "$ts_out" | grep -q 'Select backup device'; then
         ok "timeshift configuration is fine (scripted mode works)"
         sum_line "timeshift: OK ($(printf '%s' "$ts_out" | grep -c '^[A-Z]>') snapshot(s) listed)"

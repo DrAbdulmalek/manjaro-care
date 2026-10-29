@@ -2,6 +2,7 @@
 *.token
 token
 config.local
+reports/
 .work/
 __pycache__/
 *.swp
