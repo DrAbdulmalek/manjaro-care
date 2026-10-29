@@ -1,0 +1,7 @@
+# local-only files — never commit
+*.token
+token
+config.local
+.work/
+__pycache__/
+*.swp
