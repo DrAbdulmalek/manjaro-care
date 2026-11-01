@@ -39,8 +39,8 @@ chmod +x "$HERE/manjaro-care"
 ln -sf "$HERE/manjaro-care" "$HOME/.local/bin/manjaro-care-cli"
 good "linked: $HOME/.local/bin/manjaro-care-cli → $HERE/manjaro-care"
 case ":$PATH:" in
-  *":$HOME/.local/bin:"*) good "~/.local/bin already in PATH" ;;
-  *) warnp "~/.local/bin is not in PATH — add: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+  *":$HOME/.local/bin:"*) good "\$HOME/.local/bin already in PATH" ;;
+  *) warnp "\$HOME/.local/bin is not in PATH — add: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
 esac
 
 step "3/4 optional: report upload to a PRIVATE GitHub repo"

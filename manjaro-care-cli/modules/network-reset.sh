@@ -21,12 +21,12 @@ wifi_profile_list() {
 }
 
 network_check() {
-    log_section "فحص الشبكة"
+    log_section "$MSG_NET_TITLE"
 
     local problems=0
 
     # 1. حالة الأجهزة
-    log_info "حالة أجهزة الشبكة:"
+    log_info "$MSG_NET_DEVICES"
     nmcli device status 2>/dev/null | grep -E 'wifi|ethernet' | while read -r line; do
         if echo "$line" | grep -q "connected"; then
             log_ok "$line"
@@ -36,77 +36,77 @@ network_check() {
     done || true
 
     # 2. التحقق من rfkill
-    log_info "التحقق من حظر الراديو..."
+    log_info "$MSG_NET_RADIO_CHECK"
     if rfkill list 2>/dev/null | grep -q "Soft blocked: yes"; then
-        log_err "الراديو محجوب برمجياً! (الحل: sudo mcare network reset)"
+        log_err "$MSG_NET_RADIO_BLOCKED"
         problems=$((problems + 1))
     else
-        log_ok "لا يوجد حظر للراديو"
+        log_ok "$MSG_NET_RADIO_OK"
     fi
 
     # 3. التحقق من NetworkManager
-    log_info "التحقق من NetworkManager..."
+    log_info "$MSG_NET_NM_CHECK"
     if systemctl is-active --quiet NetworkManager; then
-        log_ok "NetworkManager يعمل"
+        log_ok "$MSG_NET_NM_OK"
     else
-        log_err "NetworkManager معطل!"
+        log_err "$MSG_NET_NM_DOWN"
         problems=$((problems + 1))
     fi
 
     # 4. التحقق من ملفات الواي فاي (psk-flags)
-    log_info "التحقق من ملفات الواي فاي..."
+    log_info "$MSG_NET_PROFILES_CHECK"
     local profile psk_flags n_kw=0
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
         psk_flags="$(nmcli -g 802-11-wireless-security.psk-flags connection show "$profile" 2>/dev/null || true)"
         case "$psk_flags" in
-            1) log_warn "الملف '$profile': كلمة المرور في KWallet (psk-flags=1) → قد يفشل الاتصال التلقائي عند الإقلاع"
+            1) log_warn "$(printf "$MSG_NET_PROFILE_KWALLET" "$profile")"
                n_kw=$((n_kw + 1)) ;;
-            0) log_ok "الملف '$profile': كلمة المرور مخزنة للنظام (psk-flags=0)" ;;
-            *) log_info "الملف '$profile': شبكة مفتوحة أو بلا إعدادات تخزين خاصة (psk-flags=${psk_flags:-فارغ})" ;;
+            0) log_ok "$(printf "$MSG_NET_PROFILE_OK" "$profile")" ;;
+            *) log_info "$(printf "$MSG_NET_PROFILE_OPEN" "$profile" "${psk_flags:-$MSG_EMPTY}")" ;;
         esac
     done < <(wifi_profile_list)
-    (( n_kw > 0 )) && { log_warn "يوجد $n_kw ملفاً يعتمد KWallet — الإصلاح: sudo mcare network wifi"; problems=$((problems + 1)); }
+    (( n_kw > 0 )) && { log_warn "$(printf "$MSG_NET_KWALLET_COUNT" "$n_kw")"; problems=$((problems + 1)); }
 
     # 5. اختبار الاتصال
-    log_info "اختبار الاتصال بالإنترنت..."
+    log_info "$MSG_NET_PING_CHECK"
     if ping -c 1 -W 3 1.1.1.1 &>/dev/null; then
-        log_ok "الاتصال بالإنترنت يعمل"
+        log_ok "$MSG_NET_PING_OK"
     else
-        log_err "لا يوجد اتصال بالإنترنت"
+        log_err "$MSG_NET_PING_FAIL"
         problems=$((problems + 1))
     fi
 
     echo ""
     if [[ $problems -eq 0 ]]; then
-        log_ok "الشبكة تعمل بشكل طبيعي"
+        log_ok "$MSG_NET_ALLGOOD"
     else
-        log_err "تم اكتشاف $problems مشكلة"
+        log_err "$(printf "$MSG_NET_FOUND" "$problems")"
     fi
 
     return "$problems"
 }
 
 network_reset() {
-    log_section "إعادة ضبط الشبكة"
-    log_warn "تنبيه: سيُقطع الاتصال لثوانٍ أثناء إعادة التشغيل — لا تشغّل هذا عبر SSH."
+    log_section "$MSG_NETRESET_TITLE"
+    log_warn "$MSG_NETRESET_WARN"
 
     # 0) نسخة احتياطية — تفشل العملية كلها إن لم تتم
-    log_info "إنشاء نسخة احتياطية من ملفات الاتصال..."
+    log_info "$MSG_NETRESET_BACKUP"
     if [[ -d /etc/NetworkManager/system-connections ]]; then
         cp -a /etc/NetworkManager/system-connections "$BACKUPS_DIR/nm-connections.bak-$TIMESTAMP" \
-            || { log_err "فشل النسخ الاحتياطي — إلغاء إعادة الضبط"; return 1; }
-        log_ok "النسخة: $BACKUPS_DIR/nm-connections.bak-$TIMESTAMP"
+            || { log_err "$MSG_NETRESET_BACKUP_FAIL"; return 1; }
+        log_ok "$(printf "$MSG_NETRESET_BACKUP_OK" "$BACKUPS_DIR/nm-connections.bak-$TIMESTAMP")"
     else
-        log_warn "لا يوجد مجلد /etc/NetworkManager/system-connections — تخطي النسخ"
+        log_warn "$MSG_NETRESET_NO_NMDIR"
     fi
 
     # 1) إيقاف الخدمات
-    log_info "إيقاف خدمات الشبكة..."
+    log_info "$MSG_NETRESET_STOP"
     systemctl stop NetworkManager wpa_supplicant 2>/dev/null || true
 
     # 2) مسح حالات الطيار المتعطلة والذيلات
-    log_info "مسح حالة NetworkManager وذيلات DHCP..."
+    log_info "$MSG_NETRESET_CLEAN"
     rm -f /var/lib/NetworkManager/NetworkManager.state
     # على مانجارو: dhcpcd يخزن في /var/lib/dhcpcd (وليس /var/lib/dhcp كما في دبيان)
     if [[ -d /var/lib/dhcpcd ]]; then
@@ -119,46 +119,46 @@ network_reset() {
     # 3) إعادة تعيين psk-flags قبل التشغيل (nmcli يحتاج NM حياً — سنفعلها بعد التشغيل)
 
     # 4) إعادة تشغيل الخدمات وتشغيل الشبكة والراديو صراحةً
-    log_info "إعادة تشغيل خدمات الشبكة..."
+    log_info "$MSG_NETRESET_START"
     systemctl start NetworkManager
     sleep 2
     nmcli networking on  2>/dev/null || true
     nmcli radio wifi on  2>/dev/null || true   # ← كانت مفقودة: بدونها لا يتصل الواي فاي بعد إعادة الضبط
 
     # 5) إعادة تعيين psk-flags للشبكات المحفوظة (كلمة المرور للنظام لا لـ KWallet)
-    log_info "إعادة تعيين psk-flags للشبكات المحفوظة..."
+    log_info "$MSG_NETRESET_PSK"
     local profile n_fixed=0
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
         nmcli connection modify "$profile" 802-11-wireless-security.psk-flags 0 2>/dev/null \
-            && { log_ok "تم تحديث: $profile"; n_fixed=$((n_fixed + 1)); } || true
+            && { log_ok "$(printf "$MSG_NETRESET_PSK_DONE" "$profile")"; n_fixed=$((n_fixed + 1)); } || true
     done < <(wifi_profile_list)
-    log_info "عدد الملفات المحدّثة: $n_fixed"
+    log_info "$(printf "$MSG_NETRESET_COUNT" "$n_fixed")"
 
     # 6) إعادة المسح
-    log_info "إعادة مسح شبكات الواي فاي..."
+    log_info "$MSG_NETRESET_RESCAN"
     nmcli device wifi rescan 2>/dev/null || true
     sleep 3
 
     # 7) التحقق
-    log_info "التحقق من الاتصال..."
+    log_info "$MSG_NETRESET_VERIFY"
     if ping -c 1 -W 3 1.1.1.1 &>/dev/null; then
-        log_ok "تم إعادة ضبط الشبكة بنجاح"
+        log_ok "$MSG_NETRESET_DONE"
     else
-        log_warn "الشبكة مُعاد ضبطها، لكن الاتصال قد يحتاج وقتاً (أو اختر الشبكة يدوياً)"
+        log_warn "$MSG_NETRESET_SOFT"
     fi
 
-    log_ok "اكتملت إعادة الضبط"
+    log_ok "$MSG_NETRESET_COMPLETE"
     return 0
 }
 
 network_wifi_fix() {
-    log_section "إصلاح مشاكل الواي فاي"
+    log_section "$MSG_WIFI_TITLE"
 
     # 1) اكتشاف الملفات الفاشلة فعلاً فقط:
     #    الشبكة المفتوحة (بلا key-mgmt) صالحة ولا تُحذف. الملف الفاشل هو
     #    الذي يفشل استعلامه أساساً من NetworkManager.
-    log_info "البحث عن ملفات واي فاي غير صالحة..."
+    log_info "$MSG_WIFI_SCAN"
     local broken=() profile
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
@@ -168,41 +168,41 @@ network_wifi_fix() {
     done < <(wifi_profile_list)
 
     if (( ${#broken[@]} > 0 )); then
-        log_warn "ملفات غير صالحة (${#broken[@]}): ${broken[*]}"
+        log_warn "$(printf "$MSG_WIFI_BROKEN" "${#broken[@]}" "${broken[*]}")"
         if [[ -t 0 ]]; then
             local reply=""
-            read -r -p "حذف هذه الملفات؟ لن تُحذف الشبكات المفتوحة السليمة (y/N): " reply
+            read -r -p "$MSG_WIFI_CONFIRM" reply
             if [[ "$reply" =~ ^[Yy]$ ]]; then
                 local p
                 for p in "${broken[@]}"; do
                     nmcli connection delete "$p" 2>/dev/null || true
-                    log_ok "حُذف: $p"
+                    log_ok "$(printf "$MSG_WIFI_DELETED" "$p")"
                 done
             else
-                log_info "تم تخطي الحذف"
+                log_info "$MSG_WIFI_SKIPPED"
             fi
         else
-            log_info "لا طرفية تفاعلية — لن يُحذف شيء. أعد التشغيل تفاعلياً للتأكيد."
+            log_info "$MSG_WIFI_NOTTY"
         fi
     else
-        log_ok "لا توجد ملفات غير صالحة"
+        log_ok "$MSG_WIFI_CLEAN"
     fi
 
     # 2) إعادة تعيين psk-flags (الحل الفعلي لمشكلة KWallet عند الإقلاع)
-    log_info "تعيين psk-flags=0 لجميع الشبكات (تخزين في النظام لا KWallet)..."
+    log_info "$MSG_WIFI_PSK"
     local n=0
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
         nmcli connection modify "$profile" 802-11-wireless-security.psk-flags 0 2>/dev/null \
             && n=$((n + 1)) || true
     done < <(wifi_profile_list)
-    log_ok "تم تحديث $n ملفاً"
+    log_ok "$(printf "$MSG_WIFI_PSK_DONE" "$n")"
 
     # 3) إعادة تشغيل NetworkManager وتفعيل الراديو
     systemctl restart NetworkManager
     sleep 2
     nmcli radio wifi on 2>/dev/null || true
 
-    log_ok "تم إصلاح الواي فاي"
+    log_ok "$MSG_WIFI_DONE"
     return 0
 }

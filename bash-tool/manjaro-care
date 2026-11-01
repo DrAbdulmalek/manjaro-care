@@ -21,6 +21,10 @@
 #     --mirrors   ترتيب المرايا قبل التحديث
 #     --no-color  تعطيل الألوان
 # =============================================================================
+# ملاحظة shellcheck: بعض المتغيرات (MC_TOKEN, MC_ASSUME_YES, MC_NO_PUSH,
+# MC_MIRRORS) تُعرَّف هنا وتُستهلك في lib/ و modules/ المحمّلة لاحقاً —
+# إنذار SC2034 عنها كاذب.
+# shellcheck disable=SC2034
 set -u -o pipefail
 
 _self="$(readlink -f -- "${BASH_SOURCE[0]:-$0}")"   # يعمل أيضاً عبر الرابط الرمزي في ~/.local/bin

@@ -1,63 +1,83 @@
-# manjaro-care-cli
+# 🛠️ manjaro-care-cli (`mcare`)
 
-أداة صيانة شاملة لنظام Manjaro Linux
+أداة صيانة شاملة وآلية لنظام Manjaro Linux من سطر الأوامر، ثنائية اللغة (العربية/الإنجليزية)، مصممة لتشخيص وإصلاح المشاكل الشائعة بأمر واحد.
+*A comprehensive and automated command-line maintenance tool for Manjaro Linux, bilingual (Arabic/English), designed to diagnose and fix common issues with a single command.*
 
-## المميزات
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/DrAbdulmalek/manjaro-care/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
+[![Bash CI](https://github.com/DrAbdulmalek/manjaro-care/actions/workflows/ci.yml/badge.svg)](../.github/workflows/ci.yml)
 
-- ✅ فحص شامل للنظام (الإقلاع، الحزم، الخدمات، الشبكة، الأمان)
-- ✅ إصلاح تلقائي للمشاكل الشائعة
-- ✅ إعادة ضبط الشبكة (مع إصلاح مشاكل الواي فاي)
-- ✅ فحص وإصلاح Btrfs وTimeshift
-- ✅ تحليل السجلات والأخطاء
-- ✅ تنظيف النظام (حزم يتيمة، ذاكرة مخبأة)
-- ✅ تقارير مفصلة
-- ✅ نسخ احتياطية قبل أي تعديل
+---
 
-## التثبيت
+## 🌟 المميزات / Features
+
+- ⚡ **تثبيت تلقائي بضغطة واحدة** عبر `curl` (One-line automatic installation via `curl`).
+- 🌍 **دعم كامل للغتين** (العربية والإنجليزية) عبر متغير البيئة `APP_LANG` (Full bilingual support via the `APP_LANG` environment variable).
+- 🔍 **فحص شامل للنظام**: الإقلاع، الحزم، الخدمات، الشبكة، Btrfs/Timeshift، الأمان، السجلات.
+- 🛠️ **إصلاح تلقائي ذكي** مع نسخة احتياطية قبل أي تعديل.
+- 📊 **تقارير فعلياً مكتوبة** في مجلد `reports/` + إخراج JSON للمعالجة الآلية (`-j`).
+- 🧹 **تنظيف آمن** (حزم يتيمة، كاش، سجلات قديمة).
+- 🖥️ **وضع هادئ** بدون ألوان ولا تفاصيل (`-q`) — مناسب للسكريبتات.
+
+## 📦 التثبيت / Installation
+
+### الطريقة 1: التثبيت التلقائي (موصى به) / Automatic (recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/DrAbdulmalek/manjaro-care/main/manjaro-care-cli/install.sh | sudo bash
+```
+
+### الطريقة 2: التثبيت اليدوي / Manual
 
 ```bash
 git clone https://github.com/DrAbdulmalek/manjaro-care.git
 cd manjaro-care/manjaro-care-cli
-chmod +x manjaro-care-cli
+sudo ./install.sh
 ```
 
-## الاستخدام
+> ملاحظة: أمر التثبيت هو **`mcare`** كي لا يتعارض مع واجهة GUI المثبتة في `/usr/bin/manjaro-care`.
+> *The installed command is **`mcare`** to avoid shadowing the GUI app installed as `/usr/bin/manjaro-care`.*
 
-### فحص شامل
-```bash
-sudo ./manjaro-care-cli doctor
-```
+## 🚀 الاستخدام / Usage
 
-### إصلاح المشاكل
-```bash
-sudo ./manjaro-care-cli fix
-```
+اللغة الافتراضية عربية؛ للإنجليزية استخدم `APP_LANG=en`.
+*Default language is Arabic; for English use `APP_LANG=en`.*
 
-### إعادة ضبط الشبكة
-```bash
-sudo ./manjaro-care-cli network reset
-```
+| الوصف / Description | عربي (افتراضي) | English |
+| :--- | :--- | :--- |
+| فحص شامل / Full check | `sudo mcare doctor` | `sudo APP_LANG=en mcare doctor` |
+| إصلاح تلقائي / Auto-fix | `sudo mcare fix` | `sudo APP_LANG=en mcare fix` |
+| إعادة ضبط الشبكة / Reset network | `sudo mcare network reset` | `sudo APP_LANG=en mcare network reset` |
+| إصلاح الواي فاي / Wi-Fi fix | `sudo mcare network wifi` | `sudo APP_LANG=en mcare network wifi` |
+| فحص الإقلاع / Boot check | `sudo mcare boot check` | `sudo APP_LANG=en mcare boot check` |
+| تنظيف النظام / Cleanup | `sudo mcare clean` | `sudo APP_LANG=en mcare clean` |
+| إخراج JSON / JSON output | `sudo mcare -j doctor` | `sudo APP_LANG=en mcare -j doctor` |
+| عرض المساعدة / Help | `mcare --help` | `APP_LANG=en mcare --help` |
 
-### فحص الإقلاع
-```bash
-sudo ./manjaro-care-cli boot check
-sudo ./manjaro-care-cli boot fix
-```
+> 💡 نصيحة: صدّر اللغة مرة واحدة في الجلسة: `export APP_LANG=en`
+> *Tip: export the language once per session: `export APP_LANG=en`*
 
-## الوحدات
+## 📚 الوحدات المتاحة / Available modules
 
-- **boot-sanity**: فحص وإصلاح مشاكل الإقلاع
-- **network-reset**: إعادة ضبط الشبكة وإصلاح الواي فاي
-- **package-check**: فحص الحزم والتبعيات
-- **service-check**: فحص الخدمات
-- **btrfs-check**: فحص Btrfs وTimeshift
-- **security-check**: فحص الأمان والمنافذ
-- **log-analyzer**: تحليل السجلات
+1. **`boot`**: فحص وإصلاح مشاكل الإقلاع وGRUB، واكتشاف الإقلاع من لقطات Timeshift عن طريق الخطأ.
+2. **`network`**: فحص وإعادة ضبط الشبكة، إصلاح مشاكل الواي فاي (`psk-flags`/KWallet)، تفعيل الراديو بعد إعادة الضبط.
+3. **`packages`**: سلامة الحزم (`pacman -Qk`)، الملفات المفقودة، الحزم اليتيمة، ملفات `.pacnew`.
+4. **`services`**: الخدمات الفاشلة أو المعلقة، وتعارضات إدارة الطاقة (TLP vs power-profiles-daemon).
+5. **`btrfs`**: صحة نظام الملفات، لقطات Timeshift (حذف بوسم التاريخ الرسمي وتأكيد)، `scrub` دوري.
+6. **`security`**: جدار الحماية (UFW)، المنافذ المفتوحة، حالة SSH وDocker.
+7. **`logs`**: أخطاء الإقلاع الحالي، `coredumps`، تنظيف السجلات بأمان.
 
-## المساهمة
+## 🔧 حل المشكلات الشائعة / Troubleshooting
 
-المساهمات مرحب بها! يرجى فتح issue أو pull request.
+- **خطأ `command not found`**: تأكد من تشغيل `sudo ./install.sh` لإنشاء الرابط الرمزي `mcare`، أو استخدم المسار الكامل `sudo ./manjaro-care-cli`.
+- **فشل التثبيت التلقائي**: تأكد من توفر `curl` و`git` واتصال إنترنت نشط.
+- **الأخطاء تبقى عربية رغم `APP_LANG=en`**: صدّر المتغير بشكل صحيح: `export APP_LANG=en` قبل الأمر.
 
-## الترخيص
+## 🤝 المساهمة / Contributing
 
-MIT License
+المساهمات مرحب بها! افتح Issue أو Pull Request على المستودع الرئيسي.
+*Contributions are welcome! Open an issue or a pull request on the main repository.*
+
+## 📝 الترخيص / License
+
+MIT — راجع [LICENSE](../LICENSE). *See [LICENSE](../LICENSE).*

@@ -4,7 +4,9 @@
 # المكتبة المشتركة: الإعدادات، الألوان، التسجيل في التقارير، أدوات sudo،
 # إدارة ملفات التقارير، وخدمات المسح المشتركة بين الوحدات.
 # =============================================================================
-
+# ملاحظة shellcheck: MC_VERSION تُعرَّف هنا وتُستهلك في السكريبت الرئيسي
+# manjaro-care — إنذار SC2034 عنها كاذب.
+# shellcheck disable=SC2034
 set -u -o pipefail
 
 MC_VERSION="1.1.0"
@@ -31,7 +33,9 @@ MC_NO_PUSH=0       # --no-push : تعطيل الرفع إلى GitHub
 MC_MIRRORS=0       # --mirrors : ترتيب المرايا قبل التحديث
 MC_FAILURES=0
 MC_WARNINGS=0
+# shellcheck disable=SC2034  # تُقرأ في lib/common.sh (دالة التنظيف) بعد مصدر الوحدات
 MC_PAMAC_STOPPED=0
+# shellcheck disable=SC2034  # تُعرَّف في modules/update.sh وتُقرأ هنا كذلك
 MC_TS_HOOK_SAVED=""
 
 # --------------------------------------------------------------- colors ------
@@ -236,7 +240,7 @@ ask_yes() {
     [ "$def" = "y" ] && return 0 || return 1
   fi
   a="${a:-$def}"
-  case "$a" in y|Y|yes|YES|نعم|Y|ن) return 0 ;; *) return 1 ;; esac
+  case "$a" in y|Y|yes|YES|نعم|ن) return 0 ;; *) return 1 ;; esac
 }
 
 ask_risky() {

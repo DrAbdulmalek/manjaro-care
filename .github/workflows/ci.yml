@@ -1,0 +1,71 @@
+name: Bash CI (mcare CLI + bash-tool)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'manjaro-care-cli/**'
+      - 'bash-tool/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'manjaro-care-cli/**'
+      - 'bash-tool/**'
+      - '.github/workflows/ci.yml'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+
+      - name: ShellCheck (errors & warnings)
+        run: |
+          shellcheck -S warning \
+            manjaro-care-cli/manjaro-care-cli \
+            manjaro-care-cli/install.sh \
+            manjaro-care-cli/test.sh \
+            manjaro-care-cli/setup-git.sh \
+            manjaro-care-cli/push-to-github.sh \
+            manjaro-care-cli/config/i18n.sh \
+            manjaro-care-cli/modules/*.sh \
+            bash-tool/manjaro-care \
+            bash-tool/install.sh \
+            bash-tool/lib/common.sh \
+            bash-tool/modules/*.sh
+
+      - name: Bash syntax validation (bash -n)
+        run: |
+          for f in \
+            manjaro-care-cli/manjaro-care-cli \
+            manjaro-care-cli/install.sh \
+            manjaro-care-cli/config/i18n.sh \
+            manjaro-care-cli/modules/*.sh \
+            bash-tool/manjaro-care \
+            bash-tool/install.sh \
+            bash-tool/lib/common.sh \
+            bash-tool/modules/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Smoke test — help/version in both languages (non-root, no system changes)
+        run: |
+          APP=manjaro-care-cli/manjaro-care-cli
+          # العربية (الافتراضية)
+          "$APP" --help | grep -q "الاستخدام"
+          "$APP" --version | grep -q "v1.1.1"
+          # الإنجليزية
+          APP_LANG=en "$APP" --help | grep -q "Usage:"
+          APP_LANG=en "$APP" --version | grep -q "v1.1.1"
+          # fallback i18n: احذف i18n.sh مؤقتاً وتأكد أن السكربت يعمل
+          mv manjaro-care-cli/config/i18n.sh /tmp/i18n.sh.bak
+          "$APP" --version | grep -q "v1.1.1"
+          mv /tmp/i18n.sh.bak manjaro-care-cli/config/i18n.sh
+          echo "smoke test OK"

@@ -56,6 +56,7 @@ fix_pacman_lock() {
   if systemctl is-active pamac-daemon.service >/dev/null 2>&1; then
     warn "pamac-daemon is running (it periodically grabs the pacman lock)"
     if ask_yes "stop pamac-daemon so the lock can be cleared?" "y"; then
+      # shellcheck disable=SC2034  # تُقرأ في lib/common.sh (التنظيف النهائي)
       as_root systemctl stop pamac-daemon.service && MC_PAMAC_STOPPED=1 && ok "pamac-daemon stopped"
     fi
   fi

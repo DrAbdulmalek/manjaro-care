@@ -62,6 +62,7 @@ cmd_update() {
       if [ $ts_rc -ne 0 ] || printf '%s' "$ts_out" | grep -q 'Select backup device'; then
         warn "timeshift not usable in scripted mode → autosnap hook temporarily disabled for this transaction"
         if as_root mv "$hook" "${hook}.mc-saved"; then
+          # shellcheck disable=SC2034  # تُقرأ في lib/common.sh (restore_ts_hook)
           MC_TS_HOOK_SAVED="${hook}.mc-saved"
           sum_line "timeshift hook: temporarily disabled during transaction"
         else
