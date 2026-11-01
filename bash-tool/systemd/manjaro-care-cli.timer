@@ -1,8 +1,7 @@
 [Unit]
-Description=Weekly manjaro-care maintenance (Sunday 21:00)
+Description=Weekly manjaro-care health check (Sunday 21:00)
 
 [Timer]
-# كل يوم أحد الساعة 21:00 — عدّلها كما تشاء (مثلاً daily)
 OnCalendar=Sun *-*-* 21:00:00
 Persistent=true
 

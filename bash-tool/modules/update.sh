@@ -54,11 +54,11 @@ cmd_update() {
   # -------------------------------------------- timeshift-autosnap guard ----
   # ملاحظة من لوجك: --hookdir لا يعطل الهوك الافتراضي؛ الحل الموثوق هو
   # تعطيل الهوك مؤقتاً أثناء المعاملة وإعادته عند الخروج (mc_cleanup).
-  local hook="/usr/share/libalpm/hooks/timeshift-autosnap.hook"
-  if [ -f "$hook" ]; then
+  local hook
+  if hook="$(find_ts_hook)"; then
     if [ "$MC_AUTO" = "1" ] || ! is_tty; then
       local ts_out ts_rc
-      ts_out="$(sudo timeshift --list --scripted 2>&1 </dev/null)"; ts_rc=$?
+      ts_out="$(root_sh 'timeshift --list --scripted 2>&1' </dev/null)"; ts_rc=$?
       if [ $ts_rc -ne 0 ] || printf '%s' "$ts_out" | grep -q 'Select backup device'; then
         warn "timeshift not usable in scripted mode → autosnap hook temporarily disabled for this transaction"
         if as_root mv "$hook" "${hook}.mc-saved"; then
@@ -83,8 +83,11 @@ cmd_update() {
     as_root pacman -Syu --noconfirm --needed
     rc=$?
   else
-    as_root pacman -Syu
+    # مباشرة على الطرفية (بدون أنبوب) كي تعمل أسئلة pacman وأشرطة التقدم؛
+    # التفاصيل تُسجَّل بعدها من /var/log/pacman.log
+    if [ "$(id -u)" = "0" ]; then pacman -Syu; else sudo pacman -Syu; fi
     rc=$?
+    pacman_log_since "$plen" | sanitize >> "${MC_LOGFILE:-/dev/null}"
   fi
   if [ $rc -eq 0 ]; then
     ok "pacman -Syu finished"

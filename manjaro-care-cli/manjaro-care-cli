@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+#
+# manjaro-care-cli - أداة صيانة شاملة لنظام Manjaro
+# الإصدار: 1.1.0
+#
+# ملاحظات التصحيح (v1.1.0):
+#  - أُزيل `set -e`: كان يقتل doctor/report عند أول مشكلة مكتشفة
+#    ((problems++)) بقيمة 0 يُرجع 1 → إنهاء فوري للسكربت. الأخطاء
+#    الآن تُعالج صراحة بدل الإنهاء الصامت.
+#  - التقرير كان معلَناً ولا يُكتب أبداً → يُكتب الآن فعلياً في reports/.
+#  - الخيارات -q/-j/-f كانت موثّقة في المساعدة ولا تُقرأ → تُفسَّر الآن.
+#  - اسم الأمر المثبَّت `mcare` كي لا يظلل واجهة GUI المثبتة كـ
+#    /usr/bin/manjaro-care.
+
+set -uo pipefail
+
+# الألوان
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# المتغيرات العامة
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODULES_DIR="$SCRIPT_DIR/modules"
+CONFIG_DIR="$SCRIPT_DIR/config"
+REPORTS_DIR="$SCRIPT_DIR/reports"
+BACKUPS_DIR="$SCRIPT_DIR/backups"
+VERSION="1.1.0"
+TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
+REPORT_FILE=""
+
+JSON_MODE=0
+QUIET_MODE=0
+MC_FORCE="${MC_FORCE:-0}"
+
+# تحميل الإعدادات
+if [[ -f "$CONFIG_DIR/config.conf" ]]; then
+    # shellcheck disable=SC1091
+    source "$CONFIG_DIR/config.conf"
+fi
+GENERATE_REPORTS="${GENERATE_REPORTS:-true}"
+if [[ "$GENERATE_REPORTS" == "true" ]]; then
+    REPORT_FILE="$REPORTS_DIR/report-$TIMESTAMP.txt"
+fi
+
+# دوال مساعدة — كل سجل يُطبع ملوّناً ويُكتب نصاً صريحاً في ملف التقرير
+_file_log() { [[ -n "$REPORT_FILE" ]] && printf '%s %s\n' "$(date '+%F %T')" "$1" >> "$REPORT_FILE"; }
+log_info() { (( QUIET_MODE )) || echo -e "${BLUE}[INFO]${NC} $1"; _file_log "[INFO] $1"; }
+log_ok()   { (( QUIET_MODE )) || echo -e "${GREEN}[✓]${NC} $1"; _file_log "[OK]   $1"; }
+log_warn() { echo -e "${YELLOW}[!]${NC} $1"; _file_log "[WARN] $1"; }
+log_err()  { echo -e "${RED}[✗]${NC} $1"; _file_log "[ERR]  $1"; }
+log_section() {
+    (( QUIET_MODE )) || {
+        echo -e "\n${CYAN}═══════════════════════════════════════${NC}"
+        echo -e "${CYAN}  $1${NC}"
+        echo -e "${CYAN}═══════════════════════════════════════${NC}\n"
+    }
+    _file_log "──────── $1 ────────"
+}
+
+# التحقق من الصلاحيات
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        log_err "هذا الأمر يتطلب صلاحيات root. شغّل عبر sudo."
+        exit 1
+    fi
+}
+
+# إنشاء مجلدات العمل
+setup_dirs() {
+    mkdir -p "$REPORTS_DIR" "$BACKUPS_DIR"
+}
+
+# عرض المساعدة
+show_help() {
+    cat << EOF
+${CYAN}manjaro-care-cli${NC} v$VERSION - أداة صيانة شاملة لنظام Manjaro
+
+${YELLOW}الاستخدام:${NC}
+    sudo ./manjaro-care-cli [خيارات] [أمر]
+    (بعد التثبيت: sudo mcare [أمر])
+
+${YELLOW}الأوامر المتاحة:${NC}
+    ${GREEN}doctor${NC}          فحص شامل للنظام (قراءة فقط)
+    ${GREEN}fix${NC}             إصلاح المشاكل المكتشفة تلقائياً
+    ${GREEN}boot${NC}            فحص وإصلاح مشاكل الإقلاع
+    ${GREEN}network${NC}         فحص وإعادة ضبط الشبكة
+    ${GREEN}packages${NC}        فحص الحزم والتبعيات
+    ${GREEN}services${NC}        فحص الخدمات المعطلة
+    ${GREEN}btrfs${NC}           فحص Btrfs وTimeshift
+    ${GREEN}security${NC}        فحص الأمان والمنافذ
+    ${GREEN}logs${NC}            تحليل السجلات والأخطاء
+    ${GREEN}clean${NC}           تنظيف النظام (حزم يتيمة، ذاكرة مخبأة)
+    ${GREEN}report${NC}          إنشاء تقرير مفصل
+
+${YELLOW}الخيارات:${NC}
+    ${GREEN}-h, --help${NC}      عرض هذه المساعدة
+    ${GREEN}-v, --version${NC}   عرض الإصدار
+    ${GREEN}-j, --json${NC}      إخراج JSON (للمعالجة الآلية)
+    ${GREEN}-q, --quiet${NC}     وضع هادئ (بدون ألوان ولا تفاصيل)
+    ${GREEN}-f, --force${NC}     فرض الإصلاح بدون تأكيد
+
+${YELLOW}أمثلة:${NC}
+    sudo ./manjaro-care-cli doctor
+    sudo ./manjaro-care-cli fix --force
+    sudo mcare network reset
+    sudo mcare boot check
+
+${YELLOW}المستودع:${NC}
+    https://github.com/DrAbdulmalek/manjaro-care (داخل manjaro-care-cli/)
+
+EOF
+}
+
+# تحميل وحدة
+load_module() {
+    local module_name="$1"
+    local module_path="$MODULES_DIR/$module_name.sh"
+
+    if [[ ! -f "$module_path" ]]; then
+        log_err "الوحدة '$module_name' غير موجودة"
+        return 1
+    fi
+    # shellcheck disable=SC1090
+    source "$module_path"
+}
+
+# --------------------------------------------------------------- تشغيل فحوص ---
+# سجل نتائج الفحوص (للملخص و JSON)
+RES_NAMES=()
+RES_RCS=()
+RES_DESCS=()
+
+run_check() {
+    local name="$1" fn="$2" desc="${3:-}"
+    local rc=0
+    if ! declare -f "$fn" >/dev/null 2>&1; then
+        log_err "الدالة $fn غير معرفة (وحدة غير محمّلة؟)"
+        rc=127
+    else
+        "$fn" || rc=$?
+    fi
+    RES_NAMES+=("$name")
+    RES_RCS+=("$rc")
+    RES_DESCS+=("$desc")
+    if (( rc == 0 )); then
+        log_ok "$name: سليم"
+    else
+        log_warn "$name: $rc مشكلة/ملاحظة"
+    fi
+    return "$rc"
+}
+
+print_summary() {
+    local total=0 i rc
+    if (( ${#RES_NAMES[@]} == 0 )); then
+        return 0
+    fi
+    log_section "ملخص الفحص"
+    for i in "${!RES_NAMES[@]}"; do
+        rc="${RES_RCS[$i]}"
+        if (( rc == 0 )); then
+            log_ok "${RES_NAMES[$i]} — سليم"
+        else
+            log_warn "${RES_NAMES[$i]} — $rc"
+            total=$(( total + rc ))
+        fi
+    done
+    if (( total == 0 )); then
+        log_ok "النتيجة الإجمالية: لا مشاكل"
+    else
+        log_err "النتيجة الإجمالية: $total مشكلة/ملاحظة — التقرير: $REPORT_FILE"
+    fi
+}
+
+print_summary_json() {
+    local i out="["
+    for i in "${!RES_NAMES[@]}"; do
+        (( i )) && out+=","
+        out+="{\"module\":\"${RES_NAMES[$i]}\",\"problems\":${RES_RCS[$i]}}"
+    done
+    out+="]"
+    local total=0
+    for i in "${!RES_RCS[@]}"; do total=$(( total + RES_RCS[$i] )); done
+    printf '{"version":"%s","date":"%s","total_problems":%d,"results":%s}\n' \
+        "$VERSION" "$TIMESTAMP" "$total" "$out"
+}
+
+# تشغيل سلسلة الفحوص القياسية (doctor/report)
+run_full_suite() {
+    load_module "boot-sanity"    && run_check "boot"      boot_sanity_check  "الإقلاع"
+    load_module "package-check"  && run_check "packages"  package_check      "الحزم"
+    load_module "service-check"  && run_check "services"  service_check      "الخدمات"
+    load_module "btrfs-check"    && run_check "btrfs"     btrfs_check        "Btrfs/Timeshift"
+    load_module "security-check" && run_check "security"  security_check     "الأمان"
+    load_module "network-reset"  && run_check "network"   network_check      "الشبكة"
+    load_module "log-analyzer"   && run_check "logs"      log_analyze        "السجلات"
+    return 0
+}
+
+# فحص مفرد + ملخص + إرجاع الكود (كود الخروج يعكس نتيجة الفحص)
+check_one() {
+    local name="$1" fn="$2" desc="${3:-}"
+    local rc=0
+    run_check "$name" "$fn" "$desc" || rc=$?
+    print_summary
+    return "$rc"
+}
+
+# الأمر الرئيسي
+main() {
+    # ---- فصل الخيارات العامة عن الأوامر (كانت لا تُقرأ إطلاقاً) ----
+    local args=()
+    while (( $# > 0 )); do
+        case "$1" in
+            -h|--help)    show_help; exit 0 ;;
+            -v|--version) echo "manjaro-care-cli v$VERSION"; exit 0 ;;
+            -j|--json)    JSON_MODE=1; NC=""; shift ;;
+            -q|--quiet)   QUIET_MODE=1; shift ;;
+            -f|--force)   MC_FORCE=1; shift ;;
+            --)           shift; while (( $# > 0 )); do args+=("$1"); shift; done ;;
+            -*)           log_err "خيار غير معروف: $1"; show_help; exit 1 ;;
+            *)            args+=("$1"); shift ;;
+        esac
+    done
+    (( ${#args[@]} )) || { show_help; exit 0; }
+
+    if (( JSON_MODE )) && [[ -t 1 ]]; then
+        # إزالة الألوان في وضع JSON
+        RED=""; GREEN=""; YELLOW=""; BLUE=""; CYAN=""; NC=""
+    fi
+
+    setup_dirs
+    : > /dev/null   # noop
+
+    local command="${args[0]}"
+    local rest=("${args[@]:1}")
+
+    case "$command" in
+        doctor|report)
+            check_root
+            log_section "فحص شامل للنظام"
+            run_full_suite
+            print_summary
+            local total=0 i
+            for i in "${!RES_RCS[@]}"; do total=$(( total + RES_RCS[$i] )); done
+            log_ok "اكتمل الفحص. التقرير: $REPORT_FILE"
+            (( JSON_MODE )) && print_summary_json   # آخر سطر للمعالجة الآلية
+            (( total > 0 )) && return 1
+            return 0
+            ;;
+
+        fix)
+            check_root
+            log_section "إصلاح المشاكل"
+            load_module "auto-fix" && auto_fix "${rest[@]:-}"
+            ;;
+
+        boot)
+            check_root
+            load_module "boot-sanity"
+            case "${rest[0]:-check}" in
+                check) check_one boot boot_sanity_check "الإقلاع" ;;
+                fix)   boot_sanity_fix ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        network|net)
+            check_root
+            load_module "network-reset"
+            case "${rest[0]:-check}" in
+                check) check_one network network_check "الشبكة" ;;
+                reset) network_reset ;;
+                wifi)  network_wifi_fix ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        packages|pkg)
+            check_root
+            load_module "package-check"
+            case "${rest[0]:-check}" in
+                check)  check_one packages package_check "الحزم" ;;
+                clean)  package_clean ;;
+                rebuild) package_rebuild ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        services|svc)
+            check_root
+            load_module "service-check"
+            case "${rest[0]:-check}" in
+                check) check_one services service_check "الخدمات" ;;
+                fix)   service_fix ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        btrfs)
+            check_root
+            load_module "btrfs-check"
+            case "${rest[0]:-check}" in
+                check)     check_one btrfs btrfs_check "Btrfs" ;;
+                scrub)     btrfs_scrub ;;
+                snapshots) btrfs_snapshots ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        security|sec)
+            check_root
+            load_module "security-check"
+            case "${rest[0]:-check}" in
+                check)    check_one security security_check "الأمان" ;;
+                ports)    security_ports ;;
+                firewall) security_firewall ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        logs)
+            check_root
+            load_module "log-analyzer"
+            case "${rest[0]:-check}" in
+                check) check_one logs log_analyze "السجلات" ;;
+                clean) log_clean ;;
+                *) log_err "أمر غير معروف: ${rest[0]}" ; return 1 ;;
+            esac
+            ;;
+
+        clean)
+            check_root
+            log_section "تنظيف النظام"
+            load_module "package-check" && package_clean
+            load_module "log-analyzer"  && log_clean
+            ;;
+
+        *)
+            log_err "أمر غير معروف: $command"
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

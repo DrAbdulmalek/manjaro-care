@@ -6,7 +6,7 @@
 #   2) الوحدات الفاشلة (reset-failed يزيل start-limit-hit أيضاً)
 #   3) الحزم الناقصة الملفات (إعادة تثبيت)
 #   4) المكتبات المفقودة في حزم AUR (حالة Orthanc: jsoncpp/boost/protobuf)
-#   5) هوك timeshift-autosnap الذي يجمّد معاملات pacman (مشكلتك في اللوج)
+#   5) هوك timeshift-autosnap الذي يجمّد معاملات pacman
 #   6) بيانات اعتماد libvirtd (credential.secret)
 #   7) تعارض TLP مع power-profiles-daemon
 # =============================================================================
@@ -127,21 +127,30 @@ fix_failed_units() {
 fix_broken_packages() {
   section "fix 3: packages with missing files"
   info "scanning (pacman -Qk)..."
-  local bad
-  bad="$(pacman -Qk 2>/dev/null | grep 'missing files' | grep -v ': 0 missing files' | awk -F: '{print $1}' | awk '{print $1}' || true)"
+  local bad foreign p repo_bad="" foreign_bad=""
+  # pacman يكتب "1 missing file" بالمفرد، فلا نعتمد على "files" فقط
+  bad="$(pacman -Qk 2>/dev/null | grep -E ', [1-9][0-9]* missing files?$' | awk -F: '{print $1}' | awk '{print $1}' || true)"
   if [ -z "$bad" ]; then
     ok "all packages complete"
     sum_line "missing files: none"
     return 0
   fi
-  warn "packages with missing files: $(printf '%s' "$bad" | tr '\n' ' ')"
-  sum_line "reinstalled (missing files): $bad"
-  if ask_yes "reinstall the listed packages (pacman -S --needed)?" "y"; then
+  foreign="$(pacman -Qmq 2>/dev/null || true)"
+  for p in $bad; do
+    if printf '%s\n' "$foreign" | grep -qx -- "$p"; then foreign_bad="$foreign_bad $p"; else repo_bad="$repo_bad $p"; fi
+  done
+  repo_bad="${repo_bad# }"; foreign_bad="${foreign_bad# }"
+  warn "packages with missing files — repo: ${repo_bad:-none} | AUR/foreign: ${foreign_bad:-none}"
+  sum_line "missing files — repo: ${repo_bad:-none}; foreign (rebuild manually): ${foreign_bad:-none}"
+  [ -n "$foreign_bad" ] && info "foreign packages are not in the repos; rebuild them (e.g. paru -S --rebuild $foreign_bad)"
+  if [ -n "$repo_bad" ] && ask_risky "reinstall repo packages: $repo_bad ?" "y"; then
+    # بدون --needed: وإلا يتخطى pacman الحزم المثبّتة والمحدّثة ولا يعيد تثبيتها
     # shellcheck disable=SC2086
-    if as_root pacman -S --needed --noconfirm $bad; then
-      ok "reinstalled: $bad"
+    if as_root pacman -S --noconfirm $repo_bad; then
+      ok "reinstalled: $repo_bad"
+      sum_line "reinstalled: $repo_bad"
     else
-      err "reinstall failed for: $bad"
+      err "reinstall failed for: $repo_bad"
     fi
   fi
   return 0
@@ -198,89 +207,117 @@ fix_missing_libs() {
 # --------------------------------------------------------- 5) timeshift ------
 fix_timeshift() {
   section "fix 5: timeshift-autosnap (pacman hangs on 'Select backup device')"
-  local hook="/usr/share/libalpm/hooks/timeshift-autosnap.hook"
-  if [ ! -f "$hook" ]; then
+  local hook
+  if ! hook="$(find_ts_hook)"; then
     ok "autosnap hook not installed — nothing to do"
     sum_line "timeshift autosnap: not installed"
     return 0
   fi
-  info "autosnap hook is installed"
+  info "autosnap hook: $hook"
 
   local ts_out ts_rc
-  ts_out="$(sudo timeshift --list --scripted 2>&1 </dev/null)"; ts_rc=$?
+  ts_out="$(root_sh 'timeshift --list --scripted 2>&1' </dev/null)"; ts_rc=$?
   if [ $ts_rc -eq 0 ] && ! printf '%s' "$ts_out" | grep -q 'Select backup device'; then
     ok "timeshift scripted mode works — autosnap is safe"
     sum_line "timeshift autosnap: OK"
     return 0
   fi
 
-  warn "timeshift cannot pick a backup device non-interactively (your btrfs case)"
-  warn "→ pacman transactions will hang: 'Enter device name or number' x3 then abort"
+  warn "timeshift cannot pick a backup device non-interactively (btrfs case)"
+  warn "→ pacman runs hooks without a keyboard: 'Enter device name or number' x3 then abort"
 
   local conf="/etc/timeshift-autosnap.conf"
-  if [ -f "$conf" ] && grep -Eq '"backup"[[:space:]]*:[[:space:]]*false' "$conf"; then
-    ok "autosnap already disabled in $conf"
+  if [ -f "$conf" ] && grep -Eq '^[[:space:]]*skipAutosnap[[:space:]]*=[[:space:]]*true' "$conf"; then
+    ok "autosnap already skipped in $conf"
     sum_line "timeshift autosnap: already disabled"
     return 0
   fi
-
-  if ask_yes "disable autosnap snapshots permanently (write backup:false to $conf)? recommended" "y"; then
-    if [ -f "$conf" ]; then
+  if [ -f "$conf" ] && grep -Eq '^[[:space:]]*skipAutosnap[[:space:]]*=' "$conf"; then
+    if ask_risky "set skipAutosnap=true in $conf (backup of the file is kept)?" "y"; then
       as_root cp -a "$conf" "${conf}.bak.$(date +%Y%m%d%H%M%S)" && ok "backup of old config saved"
+      as_root sed -i -E 's/^[[:space:]]*skipAutosnap[[:space:]]*=.*/skipAutosnap=true/' "$conf"
+      ok "autosnap skipped. Take snapshots manually: sudo timeshift --create --comments 'manual'"
+      sum_line "timeshift autosnap: **skipAutosnap=true** written to $conf"
+    else
+      sum_line "timeshift autosnap: left enabled (user declined)"
     fi
-    printf '{\n  "backup" : false,\n  "snapshots" : true,\n  "maxSnapshots" : 3,\n  "updateGrub" : false\n}\n' | as_root tee "$conf" >/dev/null
-    ok "autosnap disabled (backup: false). Take snapshots manually: sudo timeshift --create --comments 'manual'"
-    sum_line "timeshift autosnap: **disabled** (backup:false written to $conf)"
   else
-    warn "autosnap left enabled — use 'manjaro-care update' which auto-guards the hook during transactions"
-    sum_line "timeshift autosnap: left enabled (guard mode available in update)"
+    warn "format of $conf not recognized (no skipAutosnap key) — NOT modifying it"
+    info "options: (a) 'manjaro-care-cli update' guards the hook per transaction; (b) configure Timeshift's btrfs device so 'sudo timeshift --list --scripted' works"
+    sum_line "timeshift autosnap: broken in scripted mode; config not modified (unknown format) — use update guard"
   fi
   return 0
 }
 
 # ----------------------------------------------------------- 6) libvirt ------
+LV_KEY="/var/lib/libvirt/secrets/secrets-encryption-key"
+
+lv_key_len() {
+  # يطبع عدد بايتات مفتاح libvirt بعد فك تشفيره (المتوقع 32؛ 0 = فشل أو غير موجود)
+  root_sh 'test -f "$1" && systemd-creds decrypt "$1" - 2>/dev/null | wc -c || echo 0' _ "$LV_KEY" | tr -dc '0-9'
+}
+
 fix_libvirt() {
   section "fix 6: libvirtd credentials (status=243/CREDENTIALS)"
-  local lv
-  lv="$(systemctl is-active libvirtd.service 2>/dev/null || true)"
-  if [ "$lv" = "active" ]; then
-    ok "libvirtd running"
-    sum_line "libvirtd: running"
-    return 0
+  if ! systemctl cat libvirtd.service >/dev/null 2>&1; then
+    info "libvirtd not installed — skipping"; return 0
+  fi
+  if [ "$(systemctl is-active libvirtd.service 2>/dev/null || true)" = "active" ]; then
+    ok "libvirtd running"; sum_line "libvirtd: running"; return 0
   fi
   if ! have systemd-creds; then
-    info "libvirtd not active; systemd-creds unavailable — skipping"
-    return 0
+    info "libvirtd not active; systemd-creds unavailable — skipping"; return 0
   fi
-  local secret_ok=1
-  as_root test -f /var/lib/systemd/credential.secret 2>/dev/null && secret_ok=0
-  if [ "$secret_ok" = "1" ]; then
-    warn "libvirtd is '$lv' and /var/lib/systemd/credential.secret is missing"
-    if ask_yes "run 'systemd-creds setup' and start libvirtd?" "y"; then
-      if as_root systemd-creds setup; then
-        ok "credential.secret created"
-        sum_line "libvirtd: systemd-creds setup **done**"
-      else
-        err "systemd-creds setup failed"
-      fi
-      as_root systemctl reset-failed libvirtd.service 2>/dev/null || true
-      if as_root systemctl start libvirtd.service; then
-        ok "libvirtd started"
-      else
-        warn "libvirtd still failing — check: journalctl -u libvirtd -n 30"
-        sum_line "libvirtd: start failed after credential setup"
-      fi
-    fi
-  else
-    info "credential.secret exists — trying plain start"
+
+  local n; n="$(lv_key_len)"
+  if [ "${n:-0}" = "32" ]; then
+    info "libvirt key decrypts fine — trying plain start"
     as_root systemctl reset-failed libvirtd.service 2>/dev/null || true
     if as_root systemctl start libvirtd.service; then
-      ok "libvirtd started"
-      sum_line "libvirtd: **started**"
+      ok "libvirtd started"; sum_line "libvirtd: **started**"
     else
-      warn "libvirtd still not starting"
-      sum_line "libvirtd: still failing"
+      warn "libvirtd still failing — see: journalctl -u libvirtd -n 30"; sum_line "libvirtd: still failing (key OK)"
     fi
+    return 0
+  fi
+
+  warn "libvirt secrets key is missing or cannot be decrypted (host key lost?)"
+  # لا نعيد التوليد إن وُجدت أسرار أخرى مشفّرة بالمفتاح القديم: ستصبح غير قابلة للقراءة
+  local others
+  others="$(root_sh 'find /var/lib/libvirt/secrets /etc/libvirt/secrets -mindepth 1 -maxdepth 1 ! -name "secrets-encryption-key*" 2>/dev/null' || true)"
+  if [ -n "$others" ]; then
+    err "other libvirt secrets exist; regenerating the key would orphan them — handle manually:"
+    printf '%s\n' "$others" | sed 's/^/  - /'
+    sum_line "**libvirtd**: key unusable but other secrets exist — manual action needed"
+    return 0
+  fi
+
+  if ! ask_risky "regenerate the key (backup to /root first; no other secrets are stored)?" "y"; then
+    sum_line "libvirtd: regeneration declined"; return 0
+  fi
+  local ts; ts="$(date +%Y%m%d%H%M%S)"
+  as_root cp -a /var/lib/libvirt/secrets "/root/libvirt-secrets.bak-$ts" || { err "backup failed — aborting"; return 0; }
+  ok "backup: /root/libvirt-secrets.bak-$ts"
+  if ! root_sh 'test -f /var/lib/systemd/credential.secret'; then
+    as_root systemd-creds setup || { err "systemd-creds setup failed"; return 0; }
+    ok "host credential key created"
+  fi
+  root_sh 'test -f "$1" && mv "$1" "$1.old-$2"; true' _ "$LV_KEY" "$ts"
+  # الوحدة تتخطى نفسها إن بقي ملف المفتاح (ConditionPathExists=!)، لذلك نقلناه أولاً
+  as_root systemctl start virt-secret-init-encryption.service || { err "could not generate new key"; return 0; }
+  n="$(lv_key_len)"
+  if [ "${n:-0}" != "32" ]; then
+    err "new key does not decrypt to 32 bytes (got ${n:-0}) — not starting libvirtd"
+    sum_line "libvirtd: new key verification failed"; return 0
+  fi
+  ok "new key verified (32 bytes)"
+  as_root systemctl reset-failed libvirtd.service libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket 2>/dev/null || true
+  if as_root systemctl start libvirtd.service; then
+    ok "libvirtd started"
+    sum_line "libvirtd: key regenerated, **started** (old key: $LV_KEY.old-$ts; backup /root/libvirt-secrets.bak-$ts)"
+  else
+    warn "libvirtd still failing — see: journalctl -u libvirtd -n 30"
+    sum_line "libvirtd: key regenerated but start failed"
   fi
   return 0
 }
@@ -302,7 +339,7 @@ fix_power_conflict() {
     return 0
   fi
   warn "conflict: TLP active AND power-profiles-daemon active/enabled"
-  if ask_yes "mask power-profiles-daemon and restart TLP?" "y"; then
+  if ask_risky "mask power-profiles-daemon and restart TLP? (removes the Plasma power-profile switch)" "y"; then
     if as_root systemctl mask --now power-profiles-daemon.service; then
       ok "power-profiles-daemon masked"
       sum_line "power: power-profiles-daemon **masked**"

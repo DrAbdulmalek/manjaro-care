@@ -7,14 +7,17 @@
 
 set -u -o pipefail
 
-MC_VERSION="1.0.0"
+MC_VERSION="1.1.0"
 
 # ---------------------------------------------------------------- paths ------
 MC_ROOT="${MC_ROOT:-$(pwd)}"
-MC_CONFIG_DIR="${MC_USER_CONFIG_DIR:-${HOME}/.config/manjaro-care}"
+MC_CONFIG_DIR="${MC_USER_CONFIG_DIR:-${HOME}/.config/manjaro-care-cli}"
 MC_CONFIG_FILE="${MC_CONFIG_DIR}/config"
 MC_TOKEN_FILE="${MC_CONFIG_DIR}/token"
-MC_REPORTS_DIR="${MC_ROOT}/reports"
+# التقارير خارج نسخة الكود: مجلد حالة خاص بالمستخدم (مستودع git مستقل عند الرفع)
+MC_STATE_DIR="${MC_USER_STATE_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/manjaro-care-cli}"
+MC_REPORTS_DIR="${MC_STATE_DIR}/reports"
+MC_ASKPASS=""
 
 # ---------------------------------------------------------------- state ------
 MC_LOGFILE=""
@@ -22,8 +25,8 @@ MC_SUMMARY=""
 MC_REPORT_DIR=""
 MC_TASK="manual"
 MC_RUN_STARTED=0
-MC_AUTO=0          # --auto    : وضع غير تفاعلي بقيم آمنة
-MC_ASSUME_YES=0    # --yes     : الموافقة على كل الأسئلة
+MC_AUTO=0          # --auto    : غير تفاعلي؛ يُجاب بالافتراضي، والعمليات الخطرة تُرفض
+MC_ASSUME_YES=0    # --yes     : الموافقة الصريحة على كل الأسئلة (بما فيها الخطرة)
 MC_NO_PUSH=0       # --no-push : تعطيل الرفع إلى GitHub
 MC_MIRRORS=0       # --mirrors : ترتيب المرايا قبل التحديث
 MC_FAILURES=0
@@ -48,7 +51,8 @@ load_config() {
     . "$MC_CONFIG_FILE"
   fi
   MC_GH_USER="${MC_GH_USER:-DrAbdulmalek}"
-  MC_GH_REPO="${MC_GH_REPO:-manjaro-care}"
+  MC_GH_REPO="${MC_GH_REPO:-manjaro-care-reports}"   # يجب أن يكون مستودعاً خاصاً (private)
+  MC_PUSH="${MC_PUSH:-0}"                            # 1 = رفع تلقائي بعد كل تشغيل
   MC_GH_BRANCH="${MC_GH_BRANCH:-main}"
   MC_KEEP_REPORTS="${MC_KEEP_REPORTS:-150}"
   MC_TOKEN=""
@@ -60,11 +64,15 @@ load_config() {
 # ------------------------------------------------------------ output ---------
 # يحجب التوكن من أي نص قبل كتابته في ملفات السجل
 sanitize() {
-  if [ -n "${MC_TOKEN:-}" ]; then
-    sed -e "s|${MC_TOKEN}|***REDACTED***|g"
-  else
-    cat
-  fi
+  # يحجب: التوكن + اسم الجهاز + اسم المستخدم (التقارير قد تُرفع إلى GitHub)
+  local host user
+  host="$(hostname 2>/dev/null || true)"
+  user="${SUDO_USER:-${USER:-}}"
+  local -a args=()
+  [ -n "${MC_TOKEN:-}" ] && args+=(-e "s|${MC_TOKEN}|***REDACTED***|g")
+  [ -n "$host" ] && [ "${#host}" -ge 3 ] && args+=(-e "s|${host}|<host>|g")
+  [ -n "$user" ] && [ "$user" != "root" ] && [ "${#user}" -ge 3 ] && args+=(-e "s|${user}|<user>|g")
+  if [ "${#args[@]}" -gt 0 ]; then sed "${args[@]}"; else cat; fi
 }
 
 _note_line() {
@@ -114,7 +122,7 @@ start_report() {
   : > "$MC_LOGFILE"
   {
     printf '# manjaro-care report — %s\n\n' "$MC_TASK"
-    printf -- '- **host:** %s  \n' "$(hostname 2>/dev/null || echo '?')"
+    printf -- '- **host:** <host>  \n'
     printf -- '- **date:** %s  \n' "$(date '+%F %T %Z')"
     printf -- '- **kernel:** %s  \n' "$(uname -r)"
     printf -- '- **mode:** %s\n' "$([ "$MC_AUTO" = "1" ] && echo auto || echo interactive)"
@@ -159,6 +167,23 @@ require_sudo() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# اسم هوك timeshift-autosnap يختلف بين الإصدارات (عندك: 00-timeshift-autosnap.hook)
+# MC_HOOK_DIRS يقبل الفصل بمسافة أو بنقطتين (كعرف PATH) كي لا يصطدم خطأً
+find_ts_hook() {
+  local d f dirs
+  dirs="${MC_HOOK_DIRS:-/usr/share/libalpm/hooks /etc/pacman.d/hooks}"
+  dirs="${dirs//:/ }"
+  for d in $dirs; do
+    for f in "$d"/*timeshift-autosnap*.hook; do
+      [ -f "$f" ] && { printf '%s' "$f"; return 0; }
+    done
+  done
+  return 1
+}
+
+# تشغيل سكربت sh كـ root: root_sh 'script' _ arg1 arg2   (للاستخدام داخل $(...))
+root_sh() { if [ "$(id -u)" = "0" ]; then sh -c "$@"; else sudo sh -c "$@"; fi; }
 is_tty() { [ -t 0 ]; }
 is_manjaro() { grep -qi 'manjaro' /etc/os-release 2>/dev/null; }
 
@@ -168,8 +193,27 @@ free_gb_root() {
   printf '%s' "${v:-0}"
 }
 
-gh_push_url() {
-  printf 'https://%s:%s@github.com/%s/%s.git' "$MC_GH_USER" "$MC_TOKEN" "$MC_GH_USER" "$MC_GH_REPO"
+gh_askpass_setup() {
+  # git يسأل هذا السكربت عن كلمة المرور: التوكن لا يظهر في وسائط أي عملية ولا في .git/config
+  MC_ASKPASS="$(mktemp "${TMPDIR:-/tmp}/mc-askpass.XXXXXX")" || return 1
+  chmod 700 "$MC_ASKPASS"
+  cat > "$MC_ASKPASS" <<'EOS'
+#!/bin/sh
+case "$1" in
+  Username*) printf '%s\n' "$MC_GH_USER" ;;
+  *) tr -d '\r\n' < "$MC_TOKEN_FILE" ;;
+esac
+EOS
+  export MC_GH_USER MC_TOKEN_FILE
+  return 0
+}
+
+gh_repo_is_private() {
+  # يرفض الرفع إلى مستودع عام: التقارير فيها معلومات الجهاز
+  local out
+  out="$(printf 'header = "Authorization: Bearer %s"\n' "$MC_TOKEN" \
+        | curl -s -m 15 -K - "https://api.github.com/repos/${MC_GH_USER}/${MC_GH_REPO}" 2>/dev/null)"
+  printf '%s' "$out" | grep -Eq '"private"[[:space:]]*:[[:space:]]*true'
 }
 
 gh_clean_url() {
@@ -195,6 +239,15 @@ ask_yes() {
   case "$a" in y|Y|yes|YES|نعم|Y|ن) return 0 ;; *) return 1 ;; esac
 }
 
+ask_risky() {
+  # للعمليات التي تغيّر النظام بشكل لا يُرجَع بسهولة: في --auto تُرفض ما لم يُمرَّر --yes صراحةً
+  if [ "$MC_ASSUME_YES" != "1" ] && [ "$MC_AUTO" = "1" ]; then
+    info "auto mode: skipped (needs interactive confirmation): $1"
+    return 1
+  fi
+  ask_yes "$@"
+}
+
 # ------------------------------------------------- transient-state cleanup ---
 mc_cleanup() {
   # يُستدعى تلقائياً عند الخروج: يعيد هوك timeshift وخدمة pamac كما كانا
@@ -208,6 +261,7 @@ mc_cleanup() {
     info "timeshift-autosnap hook restored"
     MC_TS_HOOK_SAVED=""
   fi
+  [ -n "$MC_ASKPASS" ] && rm -f "$MC_ASKPASS" 2>/dev/null
   if [ "$MC_PAMAC_STOPPED" = "1" ]; then
     if [ "$(id -u)" = "0" ]; then
       systemctl start pamac-daemon.service >/dev/null 2>&1 || true
