@@ -55,12 +55,15 @@ jobs:
             bash -n "$f"
           done
 
+      - name: Safety regression tests (no system changes)
+        run: bash manjaro-care-cli/tests/safety-regression.sh
+
       - name: Smoke test — help/version in both languages (non-root, no system changes)
         run: |
           APP=manjaro-care-cli/manjaro-care-cli
           # العربية (الافتراضية)
           "$APP" --help | grep -q "الاستخدام"
-          "$APP" --version | grep -q "v1.1.1"
+          "$APP" --version | grep -q "v1.1.2"
           # الإنجليزية
           APP_LANG=en "$APP" --help | grep -q "Usage:"
           APP_LANG=en "$APP" --version | grep -q "v1.1.1"
