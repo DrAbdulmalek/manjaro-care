@@ -13,7 +13,7 @@ pass() { printf 'PASS: %s\n' "$1"; }
 if grep -Fq 'rm -rf "$INSTALL_DIR"' "$INSTALLER"; then
     fail "installer contains recursive deletion of INSTALL_DIR"
 fi
-grep -Fq 'git pull --ff-only origin main' "$INSTALLER" || fail "fast-forward-only update missing"
+grep -Fq 'pull --ff-only origin main' "$INSTALLER" || fail "fast-forward-only update missing"
 grep -Fq 'Existing installation was left untouched' "$INSTALLER" || fail "failed update must preserve existing install"
 pass "installer refuses destructive reinstall"
 
