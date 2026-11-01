@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INSTALLER="$ROOT/manjaro-care-cli/install.sh"
-BOOT="$ROOT/manjaro-care-cli/modules/boot-sanity.sh"
-PACKAGES="$ROOT/manjaro-care-cli/modules/package-check.sh"
-CLI="$ROOT/manjaro-care-cli/manjaro-care-cli"
+INSTALLER="$ROOT/install.sh"
+BOOT="$ROOT/modules/boot-sanity.sh"
+PACKAGES="$ROOT/modules/package-check.sh"
+CLI="$ROOT/manjaro-care-cli"
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 pass() { printf 'PASS: %s\n' "$1"; }
