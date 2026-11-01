@@ -107,11 +107,25 @@ package_clean() {
     orphans=$(pacman -Qdtq 2>/dev/null)
     
     if [[ -n "$orphans" ]]; then
-        # shellcheck disable=SC2086
-        if pacman -Rns $orphans --noconfirm; then
-            log_ok "تم إزالة الحزم اليتيمة"
+        local -a orphan_packages=()
+        mapfile -t orphan_packages <<< "$orphans"
+        log_warn "الحزم المرشحة للإزالة:"
+        printf '  %s\\n' "${orphan_packages[@]}"
+        if [[ ! -t 0 ]]; then
+            log_err "لا توجد طرفية تفاعلية؛ لن تُزال أي حزمة."
+            return 1
+        fi
+        local reply=""
+        read -r -p "إزالة الحزم المعروضة باستخدام pacman -Rns؟ [y/N] " reply
+        if [[ "$reply" =~ ^[Yy]$ ]]; then
+            if pacman -Rns -- "${orphan_packages[@]}"; then
+                log_ok "تمت إزالة الحزم اليتيمة بعد موافقتك"
+            else
+                log_err "فشل إزالة بعض الحزم اليتيمة"
+                return 1
+            fi
         else
-            log_err "فشل إزالة بعض الحزم اليتيمة"
+            log_info "أُلغي حذف الحزم."
         fi
     else
         log_ok "لا توجد حزم يتيمة"
@@ -126,10 +140,17 @@ package_clean() {
         log_warn "paccache غير مثبت"
     fi
     
-    # 3. إزالة ملفات .pacnew القديمة
-    log_info "إزالة ملفات .pacnew القديمة..."
-    find /etc -name "*.pacnew" -mtime +30 -delete 2>/dev/null || true
-    log_ok "تم التنظيف"
+    # 3. Preserve pacnew/pacsave files; they may contain administrator changes.
+    log_info "فحص ملفات .pacnew/.pacsave دون حذفها..."
+    local -a config_candidates=()
+    mapfile -t config_candidates < <(find /etc -type f \\( -name "*.pacnew" -o -name "*.pacsave" \\) -print 2>/dev/null)
+    if (( ${#config_candidates[@]} > 0 )); then
+        log_warn "تم الاحتفاظ بـ ${#config_candidates[@]} ملف إعدادات للمراجعة اليدوية:"
+        printf '  %s\\n' "${config_candidates[@]}"
+    else
+        log_ok "لا توجد ملفات .pacnew/.pacsave"
+    fi
+    log_ok "اكتمل تنظيف ذاكرة الحزم؛ لم تُحذف ملفات الإعدادات."
 }
 
 package_rebuild() {
