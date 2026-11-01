@@ -64,19 +64,25 @@ fi
 # دوال مساعدة — كل سجل يُطبع ملوّناً ويُكتب نصاً صريحاً في ملف التقرير
 # البادئات من i18n.sh (MSG_INFO/MSG_OK/...) بدل نصوص ثابتة
 _file_log() { [[ -n "$REPORT_FILE" ]] && printf '%s %s\n' "$(date '+%F %T')" "$1" >> "$REPORT_FILE"; }
-log_info() { (( QUIET_MODE )) || echo -e "${BLUE}${MSG_INFO}${NC} $1" >&2; _file_log "[INFO] $1"; }
-log_ok()   { (( QUIET_MODE )) || echo -e "${GREEN}${MSG_OK}${NC} $1" >&2; _file_log "[OK]   $1"; }
-log_warn() { echo -e "${YELLOW}${MSG_WARN}${NC} $1" >&2; _file_log "[WARN] $1"; }
-log_err()  { echo -e "${RED}${MSG_ERR}${NC} $1" >&2; _file_log "[ERR]  $1"; }
+_log_message() {
+    if (( JSON_MODE )); then
+        echo -e "$1" >&2
+    else
+        echo -e "$1"
+    fi
+}
+log_info() { (( QUIET_MODE )) || _log_message "${BLUE}${MSG_INFO}${NC} $1"; _file_log "[INFO] $1"; }
+log_ok()   { (( QUIET_MODE )) || _log_message "${GREEN}${MSG_OK}${NC} $1"; _file_log "[OK]   $1"; }
+log_warn() { _log_message "${YELLOW}${MSG_WARN}${NC} $1"; _file_log "[WARN] $1"; }
+log_err()  { _log_message "${RED}${MSG_ERR}${NC} $1"; _file_log "[ERR]  $1"; }
 log_section() {
     (( QUIET_MODE )) || {
-        echo -e "\n${CYAN}${MSG_SECTION}${NC}" >&2
-        echo -e "${CYAN}  $1${NC}" >&2
-        echo -e "${CYAN}${MSG_SECTION}${NC}\n" >&2
+        _log_message "\n${CYAN}${MSG_SECTION}${NC}"
+        _log_message "${CYAN}  $1${NC}"
+        _log_message "${CYAN}${MSG_SECTION}${NC}\n"
     }
     _file_log "──────── $1 ────────"
 }
-
 # التحقق من الصلاحيات
 check_root() {
     if [[ $EUID -ne 0 ]]; then
