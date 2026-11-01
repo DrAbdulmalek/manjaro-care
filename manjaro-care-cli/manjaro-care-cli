@@ -32,7 +32,7 @@ MODULES_DIR="$SCRIPT_DIR/modules"
 CONFIG_DIR="$SCRIPT_DIR/config"
 REPORTS_DIR="$SCRIPT_DIR/reports"
 BACKUPS_DIR="$SCRIPT_DIR/backups"
-VERSION="1.1.1"
+VERSION="1.1.2"
 TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
 REPORT_FILE=""
 
@@ -64,15 +64,15 @@ fi
 # دوال مساعدة — كل سجل يُطبع ملوّناً ويُكتب نصاً صريحاً في ملف التقرير
 # البادئات من i18n.sh (MSG_INFO/MSG_OK/...) بدل نصوص ثابتة
 _file_log() { [[ -n "$REPORT_FILE" ]] && printf '%s %s\n' "$(date '+%F %T')" "$1" >> "$REPORT_FILE"; }
-log_info() { (( QUIET_MODE )) || echo -e "${BLUE}${MSG_INFO}${NC} $1"; _file_log "[INFO] $1"; }
-log_ok()   { (( QUIET_MODE )) || echo -e "${GREEN}${MSG_OK}${NC} $1"; _file_log "[OK]   $1"; }
-log_warn() { echo -e "${YELLOW}${MSG_WARN}${NC} $1"; _file_log "[WARN] $1"; }
-log_err()  { echo -e "${RED}${MSG_ERR}${NC} $1"; _file_log "[ERR]  $1"; }
+log_info() { (( QUIET_MODE )) || echo -e "${BLUE}${MSG_INFO}${NC} $1" >&2; _file_log "[INFO] $1"; }
+log_ok()   { (( QUIET_MODE )) || echo -e "${GREEN}${MSG_OK}${NC} $1" >&2; _file_log "[OK]   $1"; }
+log_warn() { echo -e "${YELLOW}${MSG_WARN}${NC} $1" >&2; _file_log "[WARN] $1"; }
+log_err()  { echo -e "${RED}${MSG_ERR}${NC} $1" >&2; _file_log "[ERR]  $1"; }
 log_section() {
     (( QUIET_MODE )) || {
-        echo -e "\n${CYAN}${MSG_SECTION}${NC}"
-        echo -e "${CYAN}  $1${NC}"
-        echo -e "${CYAN}${MSG_SECTION}${NC}\n"
+        echo -e "\n${CYAN}${MSG_SECTION}${NC}" >&2
+        echo -e "${CYAN}  $1${NC}" >&2
+        echo -e "${CYAN}${MSG_SECTION}${NC}\n" >&2
     }
     _file_log "──────── $1 ────────"
 }
@@ -313,7 +313,7 @@ main() {
             print_summary
             local total=0 i
             for i in "${!RES_RCS[@]}"; do total=$(( total + RES_RCS[$i] )); done
-            log_ok "$(printf "$MSG_CHECK_DONE" "$REPORT_FILE")"
+            (( JSON_MODE )) || log_ok "$(printf "$MSG_CHECK_DONE" "$REPORT_FILE")"
             (( JSON_MODE )) && print_summary_json   # آخر سطر للمعالجة الآلية
             (( total > 0 )) && return 1
             return 0
