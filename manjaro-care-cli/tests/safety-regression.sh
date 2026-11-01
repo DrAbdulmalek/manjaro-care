@@ -32,7 +32,7 @@ grep -Fq 'pacman -Rns --' "$PACKAGES" || fail "orphan removal must use an argume
 pass "package cleanup preserves administrator configuration"
 
 grep -Fq 'run_full_suite >&2' "$CLI" || fail "JSON diagnostic redirection missing"
-grep -Fq 'log_warn()' "$CLI" && grep -Fq '>&2' "$CLI" || fail "log output is not routed to stderr"
+grep -Fq '_log_message()' "$CLI" && grep -Fq 'echo -e "$1" >&2' "$CLI" || fail "JSON log output is not routed to stderr"
 pass "JSON mode keeps diagnostics on stderr"
 
 source "$PACKAGES"
