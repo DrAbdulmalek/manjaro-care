@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 #
 # manjaro-care-cli - أداة صيانة شاملة لنظام Manjaro
-# الإصدار: 1.1.1
+# الإصدار: 1.1.3
+#
+# ملاحظات الإصلاح (v1.1.3):
+#  - فك الروابط الرمزية عند حساب SCRIPT_DIR: بعد التثبيت يُستدعى الأمر عبر
+#    /usr/local/bin/mcare، وكانت مسارات config/ وmodules/ تُحسب من موقع
+#    الرابط لا من الملف الحقيقي، فلا يُحمّل i18n.sh وينهار السكربت مع
+#    set -u عند أول رسالة ("MSG_*: unbound variable" في sudo mcare doctor).
 #
 # ملاحظات الإصدار (v1.1.1):
 #  - دعم ثنائي اللغة (العربية/الإنجليزية) عبر APP_LANG=en
@@ -27,12 +33,14 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # المتغيرات العامة
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# يُفكّ الرابط الرمزي (readlink -f) ليُحسب SCRIPT_DIR من موقع الملف الحقيقي،
+# فيعمل الأمر المثبَّت mcare (رابط رمزي في /usr/local/bin) بشكل صحيح.
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 MODULES_DIR="$SCRIPT_DIR/modules"
 CONFIG_DIR="$SCRIPT_DIR/config"
 REPORTS_DIR="$SCRIPT_DIR/reports"
 BACKUPS_DIR="$SCRIPT_DIR/backups"
-VERSION="1.1.2"
+VERSION="1.1.3"
 TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
 REPORT_FILE=""
 

@@ -65,12 +65,12 @@ jobs:
           APP=manjaro-care-cli/manjaro-care-cli
           # العربية (الافتراضية)
           "$APP" --help | grep -q "الاستخدام"
-          "$APP" --version | grep -q "v1.1.2"
+          "$APP" --version | grep -q "v1.1.3"
           # الإنجليزية
           APP_LANG=en "$APP" --help | grep -q "Usage:"
-          APP_LANG=en "$APP" --version | grep -q "v1.1.2"
+          APP_LANG=en "$APP" --version | grep -q "v1.1.3"
           # fallback i18n: احذف i18n.sh مؤقتاً وتأكد أن السكربت يعمل
           mv manjaro-care-cli/config/i18n.sh /tmp/i18n.sh.bak
-          "$APP" --version | grep -q "v1.1.2"
+          "$APP" --version | grep -q "v1.1.3"
           mv /tmp/i18n.sh.bak manjaro-care-cli/config/i18n.sh
           echo "smoke test OK"
