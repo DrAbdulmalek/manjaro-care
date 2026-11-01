@@ -1,7 +1,7 @@
 # 🛠️ manjaro-care-cli (`mcare`)
 
-أداة صيانة شاملة وآلية لنظام Manjaro Linux من سطر الأوامر، ثنائية اللغة (العربية/الإنجليزية)، مصممة لتشخيص وإصلاح المشاكل الشائعة بأمر واحد.
-*A comprehensive and automated command-line maintenance tool for Manjaro Linux, bilingual (Arabic/English), designed to diagnose and fix common issues with a single command.*
+أداة صيانة شاملة وآلية لنظام Manjaro Linux من سطر الأوامر، بواجهة عربية/إنجليزية ووحدات يجري استكمال تدويلها، مصممة لتشخيص وإصلاح المشاكل الشائعة.
+*A comprehensive Manjaro Linux command-line maintenance tool with a bilingual core interface and progressively translated modules.**
 
 [![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)](https://github.com/DrAbdulmalek/manjaro-care/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
@@ -35,7 +35,7 @@ cd manjaro-care/manjaro-care-cli
 sudo ./install.sh
 ```
 
- > ملاحظة: المثبّت لا يحذف مجلد تثبيت موجوداً عند فشل التحديث؛ يوقف العملية ويترك النسخة الحالية كما هي. كما لا يستبدل أمراً موجوداً غير رابط رمزي. أمر CLI هو **`mcare`** كي لا يتعارض مع واجهة GUI المثبتة في `/usr/bin/manjaro-care`.
+> ملاحظة: المثبّت لا يحذف مجلد تثبيت موجوداً عند فشل التحديث؛ يوقف العملية ويترك النسخة الحالية كما هي. كما لا يستبدل أمراً موجوداً غير رابط رمزي. أمر CLI هو **`mcare`** كي لا يتعارض مع واجهة GUI المثبتة في `/usr/bin/manjaro-care`.
 > *The installed command is **`mcare`** to avoid shadowing the GUI app installed as `/usr/bin/manjaro-care`.*
 
 ## 🚀 الاستخدام / Usage
