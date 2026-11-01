@@ -2,7 +2,7 @@
 # Safe installer: never recursively deletes an existing installation or user data.
 set -Eeuo pipefail
 
-INSTALLER_LANG="\${APP_LANG:-ar}"
+INSTALLER_LANG="${APP_LANG:-ar}"
 if [[ "$INSTALLER_LANG" == "en" ]]; then
     TITLE="manjaro-care-cli Safe Installer"
     MSG_ROOT="This script must run as root (sudo)."
@@ -38,9 +38,9 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-INSTALL_DIR="\${MCARE_INSTALL_DIR:-/opt/manjaro-care-cli}"
-BIN_DIR="\${MCARE_BIN_DIR:-/usr/local/bin}"
-REPO_URL="\${MCARE_REPO_URL:-https://github.com/DrAbdulmalek/manjaro-care.git}"
+INSTALL_DIR="${MCARE_INSTALL_DIR:-/opt/manjaro-care-cli}"
+BIN_DIR="${MCARE_BIN_DIR:-/usr/local/bin}"
+REPO_URL="${MCARE_REPO_URL:-https://github.com/DrAbdulmalek/manjaro-care.git}"
 CLI_SUBDIR="manjaro-care-cli"
 
 if [[ "$INSTALL_DIR" != /* || "$BIN_DIR" != /* || "$INSTALL_DIR" == "/" || "$BIN_DIR" == "/" ]]; then
@@ -90,7 +90,7 @@ fi
 if [[ ! -d "$INSTALL_DIR/.git" ]]; then
     printf '📥 %s\n' "$(printf "$MSG_CLONE" "$INSTALL_DIR")"
     TMP_PARENT="$(mktemp -d "$PARENT_DIR/.mcare-install.XXXXXX")"
-    cleanup() { [[ -n "\${TMP_PARENT:-}" && -d "$TMP_PARENT" ]] && rm -rf -- "$TMP_PARENT"; }
+    cleanup() { [[ -n "${TMP_PARENT:-}" && -d "$TMP_PARENT" ]] && rm -rf -- "$TMP_PARENT"; }
     trap cleanup EXIT
     git clone --depth 1 "$REPO_URL" "$TMP_PARENT/repository"
     [[ -f "$TMP_PARENT/repository/$CLI_SUBDIR/manjaro-care-cli" && -d "$TMP_PARENT/repository/$CLI_SUBDIR/modules" ]] || {
