@@ -35,6 +35,7 @@ grep -Fq 'run_full_suite >&2' "$CLI" || fail "JSON diagnostic redirection missin
 grep -Fq '_log_message()' "$CLI" && grep -Fq 'echo -e "$1" >&2' "$CLI" || fail "JSON log output is not routed to stderr"
 pass "JSON mode keeps diagnostics on stderr"
 
+# shellcheck disable=SC1090
 source "$PACKAGES"
 log_section() { :; }
 log_info() { :; }
