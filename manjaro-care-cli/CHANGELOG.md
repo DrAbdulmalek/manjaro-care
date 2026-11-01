@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.3] - 2026-11-02 — إصلاح التشغيل عبر الرابط الرمزي `mcare`
+
+### Fixed
+- invoking the installed command `/usr/local/bin/mcare` (a symlink) computed
+  `SCRIPT_DIR` from the link location, so `config/i18n.sh` and `modules/`
+  were never found; with `set -u` the first message variable crashed the CLI
+  (`sudo mcare doctor` → `MSG_FULLCHECK_TITLE: unbound variable`).
+- `SCRIPT_DIR` is now derived from `readlink -f` of the real script file;
+  symlinked invocation reaches the root check cleanly and loads i18n.
+
+### Tests
+- new symlink-invocation regression test in `tests/safety-regression.sh`
+  (asserts no `unbound variable` and a clean root-required message);
+  it skips gracefully where symlinks are not permitted.
+
+
 ## [1.1.2] - 2026-11-02 — إصلاحات السلامة
 
 ### Fixed

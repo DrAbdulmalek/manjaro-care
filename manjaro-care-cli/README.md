@@ -3,7 +3,7 @@
 أداة صيانة شاملة وآلية لنظام Manjaro Linux من سطر الأوامر، بواجهة عربية/إنجليزية ووحدات يجري استكمال تدويلها، مصممة لتشخيص وإصلاح المشاكل الشائعة.
 *A comprehensive Manjaro Linux command-line maintenance tool with a bilingual core interface and progressively translated modules.**
 
-[![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)](https://github.com/DrAbdulmalek/manjaro-care/releases)
+[![Version](https://img.shields.io/badge/version-1.1.3-blue.svg)](https://github.com/DrAbdulmalek/manjaro-care/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
 [![Bash CI](https://github.com/DrAbdulmalek/manjaro-care/actions/workflows/ci.yml/badge.svg)](../.github/workflows/ci.yml)
 

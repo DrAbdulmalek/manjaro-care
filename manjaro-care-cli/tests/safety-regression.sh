@@ -57,4 +57,21 @@ fi
 [[ "$PACMAN_REMOVE_CALLED" -eq 0 ]] || fail "orphan packages were removed without a TTY"
 pass "non-interactive cleanup cannot remove orphan packages"
 
+# 6. Symlinked invocation: the installed command /usr/local/bin/mcare is a
+#    symlink; SCRIPT_DIR must resolve to the real script location so that
+#    config/i18n.sh loads (otherwise `set -u` crashes on the first MSG_* use).
+TMPBIN="$(mktemp -d)"
+if ln -s "$CLI" "$TMPBIN/mcare" 2>/dev/null; then
+    SYM_OUT="$(env APP_LANG=ar "$TMPBIN/mcare" doctor 2>&1 || true)"
+    rm -rf "$TMPBIN"
+    if grep -q "unbound variable" <<<"$SYM_OUT"; then
+        fail "invoking via a symlink leaves i18n variables unbound (SCRIPT_DIR not resolved)"
+    fi
+    grep -q "root" <<<"$SYM_OUT" || fail "symlinked invocation did not reach the root check cleanly"
+    pass "symlinked invocation resolves i18n/config paths"
+else
+    rm -rf "$TMPBIN"
+    printf 'SKIP: symlink invocation test (symlinks are not permitted in this environment)\n' >&2
+fi
+
 printf '\nAll safety regression tests passed.\n'
