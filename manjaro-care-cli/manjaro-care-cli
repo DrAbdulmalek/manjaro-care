@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 #
 # manjaro-care-cli - أداة صيانة شاملة لنظام Manjaro
-# الإصدار: 1.1.0
+# الإصدار: 1.1.1
+#
+# ملاحظات الإصدار (v1.1.1):
+#  - دعم ثنائي اللغة (العربية/الإنجليزية) عبر APP_LANG=en
+#    الرسائل في config/i18n.sh — العربية تبقى الافتراضية.
 #
 # ملاحظات التصحيح (v1.1.0):
 #  - أُزيل `set -e`: كان يقتل doctor/report عند أول مشكلة مكتشفة
@@ -28,7 +32,7 @@ MODULES_DIR="$SCRIPT_DIR/modules"
 CONFIG_DIR="$SCRIPT_DIR/config"
 REPORTS_DIR="$SCRIPT_DIR/reports"
 BACKUPS_DIR="$SCRIPT_DIR/backups"
-VERSION="1.1.0"
+VERSION="1.1.1"
 TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
 REPORT_FILE=""
 
@@ -41,22 +45,34 @@ if [[ -f "$CONFIG_DIR/config.conf" ]]; then
     # shellcheck disable=SC1091
     source "$CONFIG_DIR/config.conf"
 fi
+
+# تحميل الرسائل ثنائية اللغة (APP_LANG=ar افتراضياً | en للإنجليزية)
+if [[ -f "$CONFIG_DIR/i18n.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "$CONFIG_DIR/i18n.sh"
+else
+    # احتياطي إن فُقد الملف — نفس بادئات العربية الحالية
+    MSG_INFO="[INFO]"; MSG_OK="[✓]"; MSG_WARN="[!]"; MSG_ERR="[✗]"
+    MSG_SECTION="═══════════════════════════════════════"
+    APP_LANG="ar"
+fi
 GENERATE_REPORTS="${GENERATE_REPORTS:-true}"
 if [[ "$GENERATE_REPORTS" == "true" ]]; then
     REPORT_FILE="$REPORTS_DIR/report-$TIMESTAMP.txt"
 fi
 
 # دوال مساعدة — كل سجل يُطبع ملوّناً ويُكتب نصاً صريحاً في ملف التقرير
+# البادئات من i18n.sh (MSG_INFO/MSG_OK/...) بدل نصوص ثابتة
 _file_log() { [[ -n "$REPORT_FILE" ]] && printf '%s %s\n' "$(date '+%F %T')" "$1" >> "$REPORT_FILE"; }
-log_info() { (( QUIET_MODE )) || echo -e "${BLUE}[INFO]${NC} $1"; _file_log "[INFO] $1"; }
-log_ok()   { (( QUIET_MODE )) || echo -e "${GREEN}[✓]${NC} $1"; _file_log "[OK]   $1"; }
-log_warn() { echo -e "${YELLOW}[!]${NC} $1"; _file_log "[WARN] $1"; }
-log_err()  { echo -e "${RED}[✗]${NC} $1"; _file_log "[ERR]  $1"; }
+log_info() { (( QUIET_MODE )) || echo -e "${BLUE}${MSG_INFO}${NC} $1"; _file_log "[INFO] $1"; }
+log_ok()   { (( QUIET_MODE )) || echo -e "${GREEN}${MSG_OK}${NC} $1"; _file_log "[OK]   $1"; }
+log_warn() { echo -e "${YELLOW}${MSG_WARN}${NC} $1"; _file_log "[WARN] $1"; }
+log_err()  { echo -e "${RED}${MSG_ERR}${NC} $1"; _file_log "[ERR]  $1"; }
 log_section() {
     (( QUIET_MODE )) || {
-        echo -e "\n${CYAN}═══════════════════════════════════════${NC}"
+        echo -e "\n${CYAN}${MSG_SECTION}${NC}"
         echo -e "${CYAN}  $1${NC}"
-        echo -e "${CYAN}═══════════════════════════════════════${NC}\n"
+        echo -e "${CYAN}${MSG_SECTION}${NC}\n"
     }
     _file_log "──────── $1 ────────"
 }
@@ -64,7 +80,7 @@ log_section() {
 # التحقق من الصلاحيات
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_err "هذا الأمر يتطلب صلاحيات root. شغّل عبر sudo."
+        log_err "$MSG_ROOT_REQUIRED"
         exit 1
     fi
 }
@@ -74,9 +90,53 @@ setup_dirs() {
     mkdir -p "$REPORTS_DIR" "$BACKUPS_DIR"
 }
 
-# عرض المساعدة
+# عرض المساعدة (ثنائية اللغة)
 show_help() {
-    cat << EOF
+    # printf '%b' يوسّع رموز الألوان \033 — كان heredoc يطبعها نصاً حرفياً
+    if [[ "${APP_LANG:-ar}" == "en" ]]; then
+        printf '%b' "$(cat << EOF
+${CYAN}manjaro-care-cli${NC} v$VERSION - Comprehensive maintenance tool for Manjaro Linux
+
+${YELLOW}Usage:${NC}
+    sudo ./manjaro-care-cli [options] [command]
+    (after installation: sudo mcare [command])
+
+${YELLOW}Commands:${NC}
+    ${GREEN}doctor${NC}          Full system check (read-only)
+    ${GREEN}fix${NC}             Auto-fix detected issues
+    ${GREEN}boot${NC}            Check and repair boot issues
+    ${GREEN}network${NC}         Network check and reset
+    ${GREEN}packages${NC}        Package and dependency check
+    ${GREEN}services${NC}        Failed services check
+    ${GREEN}btrfs${NC}           Btrfs and Timeshift check
+    ${GREEN}security${NC}        Security and ports check
+    ${GREEN}logs${NC}            Log and error analysis
+    ${GREEN}clean${NC}           System cleanup (orphans, cache)
+    ${GREEN}report${NC}          Generate a detailed report
+
+${YELLOW}Options:${NC}
+    ${GREEN}-h, --help${NC}      Show this help
+    ${GREEN}-v, --version${NC}   Show version
+    ${GREEN}-j, --json${NC}      JSON output (for automation)
+    ${GREEN}-q, --quiet${NC}     Quiet mode (no colors, less detail)
+    ${GREEN}-f, --force${NC}     Force fixes without confirmation
+
+${YELLOW}Language:${NC}
+    APP_LANG=en mcare doctor    # English (Arabic is the default)
+
+${YELLOW}Examples:${NC}
+    sudo ./manjaro-care-cli doctor
+    sudo ./manjaro-care-cli fix --force
+    sudo mcare network reset
+    sudo mcare boot check
+
+${YELLOW}Repository:${NC}
+    https://github.com/DrAbdulmalek/manjaro-care (see manjaro-care-cli/)
+
+EOF
+)"
+    else
+        printf '%b' "$(cat << EOF
 ${CYAN}manjaro-care-cli${NC} v$VERSION - أداة صيانة شاملة لنظام Manjaro
 
 ${YELLOW}الاستخدام:${NC}
@@ -103,6 +163,10 @@ ${YELLOW}الخيارات:${NC}
     ${GREEN}-q, --quiet${NC}     وضع هادئ (بدون ألوان ولا تفاصيل)
     ${GREEN}-f, --force${NC}     فرض الإصلاح بدون تأكيد
 
+${YELLOW}اللغة:${NC}
+    APP_LANG=ar mcare doctor    # العربية (افتراضية)
+    APP_LANG=en mcare doctor    # الإنجليزية
+
 ${YELLOW}أمثلة:${NC}
     sudo ./manjaro-care-cli doctor
     sudo ./manjaro-care-cli fix --force
@@ -113,6 +177,8 @@ ${YELLOW}المستودع:${NC}
     https://github.com/DrAbdulmalek/manjaro-care (داخل manjaro-care-cli/)
 
 EOF
+)"
+    fi
 }
 
 # تحميل وحدة
@@ -121,7 +187,7 @@ load_module() {
     local module_path="$MODULES_DIR/$module_name.sh"
 
     if [[ ! -f "$module_path" ]]; then
-        log_err "الوحدة '$module_name' غير موجودة"
+        log_err "$(printf "$MSG_MODULE_MISSING" "$module_name")"
         return 1
     fi
     # shellcheck disable=SC1090
@@ -138,7 +204,7 @@ run_check() {
     local name="$1" fn="$2" desc="${3:-}"
     local rc=0
     if ! declare -f "$fn" >/dev/null 2>&1; then
-        log_err "الدالة $fn غير معرفة (وحدة غير محمّلة؟)"
+        log_err "$(printf "$MSG_FN_MISSING" "$fn")"
         rc=127
     else
         "$fn" || rc=$?
@@ -147,9 +213,9 @@ run_check() {
     RES_RCS+=("$rc")
     RES_DESCS+=("$desc")
     if (( rc == 0 )); then
-        log_ok "$name: سليم"
+        log_ok "$name: $MSG_RES_OK"
     else
-        log_warn "$name: $rc مشكلة/ملاحظة"
+        log_warn "$name: $(printf "$MSG_RES_ISSUES" "$rc")"
     fi
     return "$rc"
 }
@@ -159,20 +225,20 @@ print_summary() {
     if (( ${#RES_NAMES[@]} == 0 )); then
         return 0
     fi
-    log_section "ملخص الفحص"
+    log_section "$MSG_SUMMARY_TITLE"
     for i in "${!RES_NAMES[@]}"; do
         rc="${RES_RCS[$i]}"
         if (( rc == 0 )); then
-            log_ok "${RES_NAMES[$i]} — سليم"
+            log_ok "${RES_NAMES[$i]} — $MSG_RES_OK"
         else
             log_warn "${RES_NAMES[$i]} — $rc"
             total=$(( total + rc ))
         fi
     done
     if (( total == 0 )); then
-        log_ok "النتيجة الإجمالية: لا مشاكل"
+        log_ok "$MSG_TOTAL_OK"
     else
-        log_err "النتيجة الإجمالية: $total مشكلة/ملاحظة — التقرير: $REPORT_FILE"
+        log_err "$(printf "$MSG_TOTAL_BAD" "$total" "$REPORT_FILE")"
     fi
 }
 
@@ -222,7 +288,7 @@ main() {
             -q|--quiet)   QUIET_MODE=1; shift ;;
             -f|--force)   MC_FORCE=1; shift ;;
             --)           shift; while (( $# > 0 )); do args+=("$1"); shift; done ;;
-            -*)           log_err "خيار غير معروف: $1"; show_help; exit 1 ;;
+            -*)           log_err "$(printf "$MSG_UNKNOWN_OPT" "$1")"; show_help; exit 1 ;;
             *)            args+=("$1"); shift ;;
         esac
     done
@@ -242,12 +308,12 @@ main() {
     case "$command" in
         doctor|report)
             check_root
-            log_section "فحص شامل للنظام"
+            log_section "$MSG_FULLCHECK_TITLE"
             run_full_suite
             print_summary
             local total=0 i
             for i in "${!RES_RCS[@]}"; do total=$(( total + RES_RCS[$i] )); done
-            log_ok "اكتمل الفحص. التقرير: $REPORT_FILE"
+            log_ok "$(printf "$MSG_CHECK_DONE" "$REPORT_FILE")"
             (( JSON_MODE )) && print_summary_json   # آخر سطر للمعالجة الآلية
             (( total > 0 )) && return 1
             return 0
@@ -255,7 +321,7 @@ main() {
 
         fix)
             check_root
-            log_section "إصلاح المشاكل"
+            log_section "$MSG_FIX_TITLE"
             load_module "auto-fix" && auto_fix "${rest[@]:-}"
             ;;
 
@@ -335,13 +401,13 @@ main() {
 
         clean)
             check_root
-            log_section "تنظيف النظام"
+            log_section "$MSG_CLEAN_TITLE"
             load_module "package-check" && package_clean
             load_module "log-analyzer"  && log_clean
             ;;
 
         *)
-            log_err "أمر غير معروف: $command"
+            log_err "$(printf "$MSG_UNKNOWN_CMD" "$command")"
             show_help
             exit 1
             ;;

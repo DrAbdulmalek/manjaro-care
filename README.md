@@ -1,4 +1,73 @@
-# Manjaro Care
+# 🛠️ Manjaro Care — صيانة مانجارو بنقرة بدل أمر
+
+*A comprehensive maintenance suite for Manjaro Linux — diagnose and fix common issues with a single command.*
+
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/DrAbdulmalek/manjaro-care/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Languages](https://img.shields.io/badge/languages-Arabic%20%7C%20English-orange.svg)](README.md)
+[![Bash CI](https://github.com/DrAbdulmalek/manjaro-care/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![Python tests](https://github.com/DrAbdulmalek/manjaro-care/actions/workflows/tests.yml/badge.svg)](.github/workflows/tests.yml)
+
+---
+
+## 🧩 المكونات الثلاثة / The three components
+
+| المكوّن | ما هو | لمن |
+|---|---|---|
+| **`mcare`** (داخل `manjaro-care-cli/`) | أداة طرفية سريعة: فحص/إصلاح/تنظيف/إعادة ضبط الشبكة — ثنائية اللغة (عربي/إنجليزي) | مستخدم الطرفية، السيرفرات، الجدولة عبر systemd timer |
+| **واجهة رسومية** (داخل `modules/` + `gui/`) | 39 وحدة صيانة بواجهة PyQt5 بفلسفة "فحص → معاينة → تطبيق" | من يفضّل النقر على كتابة الأوامر (قادمون من Windows) |
+| **`bash-tool/`** | أداة طرفية مع أرشفة تقارير على مستودع GitHub خاص | من يريد سجل صيانة موثّقاً وسحابياً |
+
+## 🚀 ما الجديد في الإصدار v1.1.1؟ / What's new
+
+- ✅ **إصلاح حاسم لوحدة الشبكة (`network-reset`)** — القصة الكاملة في [manjaro-care-cli/CHANGELOG.md](manjaro-care-cli/CHANGELOG.md):
+  - إصلاح انهيار السكربت عند أول مشكلة بسبب `set -e` و`((problems++))`.
+  - منع حذف شبكات الواي فاي المفتوحة السليمة عن طريق الخطأ.
+  - إعادة تفعيل الراديو (`nmcli radio wifi on`) بعد إعادة الضبط — بدونها لا يتصل الواي فاي.
+  - تصحيح مسارات DHCP لتتوافق مع Manjaro (`/var/lib/dhcpcd`).
+  - فك تهريب `:` في أسماء شبكات الواي فاي.
+- ✅ **دعم ثنائي اللغة (عربي/إنجليزي)** في `mcare` عبر متغير البيئة `APP_LANG` — العربية الافتراضية.
+- ✅ **تثبيت تلقائي بضغطة واحدة** عبر `curl` (انظر أدناه) — يثبّت الأمر باسم `mcare` كي لا يتعارض مع واجهة GUI في `/usr/bin/manjaro-care`.
+- ✅ **CI للسكريبتات**: ShellCheck + التحقق النحوي + اختبار دخان ثنائي اللغة على كل تحديث (`.github/workflows/ci.yml`).
+- ✅ إصلاح عرض الألوان في المساعدة، ونمط `case` مكرر في `ask_yes`، و`grep -c` المزدوج في btrfs.
+
+## 📦 التثبيت السريع للطرفية / Quick install (CLI)
+
+### الطريقة 1: التثبيت التلقائي (موصى به) / Automatic (recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/DrAbdulmalek/manjaro-care/main/manjaro-care-cli/install.sh | sudo bash
+```
+
+### الطريقة 2: اليدوية / Manual
+
+```bash
+git clone https://github.com/DrAbdulmalek/manjaro-care.git
+cd manjaro-care/manjaro-care-cli
+sudo ./install.sh
+```
+
+## 🚀 الاستخدام / Usage
+
+اللغة الافتراضية عربية. للإنجليزية: `APP_LANG=en` قبل الأمر.
+*The default language is Arabic. For English, prefix commands with `APP_LANG=en`.*
+
+| الوصف / Description | عربي (افتراضي) | English |
+| :--- | :--- | :--- |
+| فحص شامل / Full check | `sudo mcare doctor` | `sudo APP_LANG=en mcare doctor` |
+| إصلاح تلقائي / Auto-fix | `sudo mcare fix` | `sudo APP_LANG=en mcare fix` |
+| إعادة ضبط الشبكة / Reset network | `sudo mcare network reset` | `sudo APP_LANG=en mcare network reset` |
+| فحص الإقلاع / Boot check | `sudo mcare boot check` | `sudo APP_LANG=en mcare boot check` |
+| تنظيف النظام / Cleanup | `sudo mcare clean` | `sudo APP_LANG=en mcare clean` |
+| إخراج JSON / JSON output | `sudo mcare -j doctor` | `sudo APP_LANG=en mcare -j doctor` |
+| المساعدة / Help | `mcare --help` | `APP_LANG=en mcare --help` |
+
+> 💡 يمكنك تصدير اللغة مرة واحدة في الجلسة: `export APP_LANG=en`
+> *Export the language once per session to avoid repeating it.*
+
+---
+
+# 📖 التطبيق الرسومي (manjaro-care) — التوثيق التفصيلي
 
 مركز صيانة رسومي لمانجارو/آرتش، بفلسفة نقرة-بدل-أمر — يهدف لإعطاء
 مستخدمي لينكس القادمين من Windows تجربة مشابهة لأدوات مثل TuneUp
