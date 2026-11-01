@@ -50,7 +50,12 @@ boot_sanity_check() {
     kernel_series="$(printf '%s' "$kernel_version" | cut -d. -f1,2)"
     kernel_image=""
     if [[ -d "/usr/lib/modules/$kernel_version" ]]; then
-        kernel_image="$(find /boot -maxdepth 1 -type f -name "vmlinuz-${kernel_series}-*" -print -quit 2>/dev/null || true)"
+        for candidate in /boot/vmlinuz-${kernel_series}-*; do
+            if [[ -e "$candidate" ]]; then
+                kernel_image="$candidate"
+                break
+            fi
+        done
     fi
     if [[ -n "$kernel_image" ]]; then
         log_ok "$(printf "$MSG_BOOT_KERNEL_OK" "$(basename "$kernel_image")")"
