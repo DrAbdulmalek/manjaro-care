@@ -309,7 +309,11 @@ main() {
         doctor|report)
             check_root
             log_section "$MSG_FULLCHECK_TITLE"
-            run_full_suite
+            if (( JSON_MODE )); then
+                run_full_suite >&2
+            else
+                run_full_suite
+            fi
             print_summary
             local total=0 i
             for i in "${!RES_RCS[@]}"; do total=$(( total + RES_RCS[$i] )); done
