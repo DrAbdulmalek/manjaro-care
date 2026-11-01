@@ -81,7 +81,7 @@ cmd_clean() {
     n_orph="$(printf '%s\n' "$orphans" | wc -l)"
     warn "$n_orph orphan(s) found:"
     printf '%s\n' "$orphans" | sed 's/^/  - /'
-    if ask_yes "remove all $n_orph orphan package(s) (pacman -Rns)?" "y"; then
+    if ask_risky "remove all $n_orph orphan package(s) (pacman -Rns)? review the list above first" "n"; then
       # shellcheck disable=SC2086
       if as_root pacman -Rns --noconfirm $orphans; then
         ok "orphans removed"
