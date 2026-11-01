@@ -110,7 +110,7 @@ package_clean() {
         local -a orphan_packages=()
         mapfile -t orphan_packages <<< "$orphans"
         log_warn "الحزم المرشحة للإزالة:"
-        printf '  %s\\n' "${orphan_packages[@]}"
+        printf '  %s\n' "${orphan_packages[@]}"
         if [[ ! -t 0 ]]; then
             log_err "لا توجد طرفية تفاعلية؛ لن تُزال أي حزمة."
             return 1
@@ -143,10 +143,10 @@ package_clean() {
     # 3. Preserve pacnew/pacsave files; they may contain administrator changes.
     log_info "فحص ملفات .pacnew/.pacsave دون حذفها..."
     local -a config_candidates=()
-    mapfile -t config_candidates < <(find /etc -type f \\( -name "*.pacnew" -o -name "*.pacsave" \\) -print 2>/dev/null)
+    mapfile -t config_candidates < <(find /etc -type f \( -name "*.pacnew" -o -name "*.pacsave" \) -print 2>/dev/null)
     if (( ${#config_candidates[@]} > 0 )); then
         log_warn "تم الاحتفاظ بـ ${#config_candidates[@]} ملف إعدادات للمراجعة اليدوية:"
-        printf '  %s\\n' "${config_candidates[@]}"
+        printf '  %s\n' "${config_candidates[@]}"
     else
         log_ok "لا توجد ملفات .pacnew/.pacsave"
     fi
