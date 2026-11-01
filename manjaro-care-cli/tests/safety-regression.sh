@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALLER="$ROOT/manjaro-care-cli/install.sh"
 BOOT="$ROOT/manjaro-care-cli/modules/boot-sanity.sh"
 PACKAGES="$ROOT/manjaro-care-cli/modules/package-check.sh"
