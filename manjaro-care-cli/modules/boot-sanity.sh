@@ -45,10 +45,20 @@ boot_sanity_check() {
     
     # 4. التحقق من ملفات النواة
     log_info "$MSG_BOOT_KERNEL_CHECK"
-    local kernel_version
+    local kernel_version kernel_series kernel_image
     kernel_version=$(uname -r)
-    if [[ -f "/boot/vmlinuz-$kernel_version" ]]; then
-        log_ok "$(printf "$MSG_BOOT_KERNEL_OK" "vmlinuz-$kernel_version")"
+    kernel_series="$(printf '%s' "$kernel_version" | cut -d. -f1,2)"
+    kernel_image=""
+    if [[ -d "/usr/lib/modules/$kernel_version" ]]; then
+        for candidate in /boot/vmlinuz-${kernel_series}-*; do
+            if [[ -e "$candidate" ]]; then
+                kernel_image="$candidate"
+                break
+            fi
+        done
+    fi
+    if [[ -n "$kernel_image" ]]; then
+        log_ok "$(printf "$MSG_BOOT_KERNEL_OK" "$(basename "$kernel_image")")"
     else
         log_err "$MSG_BOOT_KERNEL_ERR"
         problems=$((problems + 1))
@@ -92,38 +102,80 @@ boot_sanity_check() {
 
 boot_sanity_fix() {
     log_section "$MSG_BOOTFIX_TITLE"
-    
-    # 1. إصلاح grubenv
-    log_info "$MSG_BOOTFIX_GRUBENV"
-    if [[ -f "/boot/grub/grubenv" ]]; then
-        cp -a /boot/grub/grubenv "$BACKUPS_DIR/grubenv.bak-$TIMESTAMP" \
-            || { log_err "$MSG_BOOTFIX_BAK_FAIL"; return 1; }
-    fi
-    if ! rm -f /boot/grub/grubenv; then
-        log_err "$MSG_BOOTFIX_RM_FAIL"
+
+    # Do not guess the intended Btrfs subvolume or reset grubenv.
+    local fs_type fs_root grub_default grub_cfg backup_dir tmp_cfg
+    fs_type="$(findmnt -no FSTYPE / 2>/dev/null || true)"
+    fs_root="$(findmnt -no FSROOT / 2>/dev/null || true)"
+    grub_default="/etc/default/grub"
+    grub_cfg="/boot/grub/grub.cfg"
+
+    if [[ "$fs_type" != "btrfs" || "$fs_root" != "/@" ]]; then
+        log_err "رفض الإصلاح الآلي: لم أتحقق من أن الجذر الحالي هو Btrfs subvolume @."
+        log_warn "لم يتم تعديل grubenv أو /etc/default/grub أو grub.cfg."
         return 1
     fi
-    if ! grub-editenv /boot/grub/grubenv create 2>/dev/null; then
-        log_err "$MSG_BOOTFIX_CREATE_FAIL"
+    if [[ ! -f "$grub_default" || ! -f "$grub_cfg" ]]; then
+        log_err "ملفات GRUB المطلوبة غير موجودة؛ لا تغيير."
         return 1
     fi
-    log_ok "$MSG_BOOTFIX_GRUBENV_DONE"
-    
-    # 2. إضافة rootflags إذا لم يكن موجوداً
-    log_info "$MSG_BOOTFIX_ROOTFLAGS_CHECK"
-    if ! grep -q "rootflags=subvol=@" /etc/default/grub; then
-        cp -a /etc/default/grub "$BACKUPS_DIR/grub.bak-$TIMESTAMP"
-        sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet splash udev.log_priority=3 rootflags=subvol=@\"/" /etc/default/grub
-        log_ok "$MSG_BOOTFIX_ROOTFLAGS_DONE"
-    fi
-    
-    # 3. إعادة بناء grub.cfg
-    log_info "$MSG_BOOTFIX_GRUBCFG"
-    if ! grub-mkconfig -o /boot/grub/grub.cfg; then
-        log_err "$(printf "$MSG_BOOTFIX_GRUBCFG_FAIL" "$BACKUPS_DIR/grub.bak-*")"
+    if grep -Eq '^[[:space:]]*GRUB_CMDLINE_LINUX(_DEFAULT)?=.*rootflags=' "$grub_default"; then
+        log_warn "يوجد rootflags مسبقاً؛ لن أستبدله أو أعدّل معاملات النواة."
+        log_info "راجع قيمة rootflags يدوياً قبل أي تغيير."
         return 1
     fi
-    log_ok "$MSG_BOOTFIX_GRUBCFG_DONE"
-    
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_err "Python 3 مطلوب لإضافة rootflags مع الحفاظ على بقية الإعدادات."
+        return 1
+    fi
+
+    backup_dir="$BACKUPS_DIR/grub-safe-$TIMESTAMP"
+    mkdir -p "$backup_dir" || return 1
+    cp -a "$grub_default" "$grub_cfg" "$backup_dir/" || {
+        log_err "فشل إنشاء النسخة الاحتياطية؛ لم يتم تعديل GRUB."
+        return 1
+    }
+
+    if ! python3 - "$grub_default" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+pattern = re.compile(r'^(\s*GRUB_CMDLINE_LINUX_DEFAULT\s*=\s*")([^"\n]*)(".*)$', re.M)
+match = pattern.search(text)
+if not match:
+    raise SystemExit("Could not safely parse GRUB_CMDLINE_LINUX_DEFAULT")
+value = match.group(2).strip()
+if "rootflags=" in value:
+    raise SystemExit("Existing rootflags detected; refusing to overwrite")
+replacement = match.group(1) + (value + " " if value else "") + "rootflags=subvol=@" + match.group(3)
+path.write_text(text[:match.start()] + replacement + text[match.end():], encoding="utf-8")
+PY
+    then
+        cp -a "$backup_dir/grub" "$grub_default" 2>/dev/null || true
+        log_err "تعذر تحديث إعداد GRUB بأمان؛ أُعيدت النسخة الاحتياطية إن أمكن."
+        return 1
+    fi
+
+    tmp_cfg="$(mktemp /boot/grub/grub.cfg.mcare.XXXXXX)" || {
+        cp -a "$backup_dir/grub" "$grub_default"
+        return 1
+    }
+    if ! grub-mkconfig -o "$tmp_cfg" || [[ ! -s "$tmp_cfg" ]] || ! grep -q '^menuentry ' "$tmp_cfg"; then
+        rm -f "$tmp_cfg"
+        cp -a "$backup_dir/grub" "$grub_default"
+        log_err "فشل إنشاء grub.cfg صالح؛ أُعيدت إعدادات GRUB السابقة."
+        return 1
+    fi
+    if ! mv -f "$tmp_cfg" "$grub_cfg"; then
+        cp -a "$backup_dir/grub" "$grub_default"
+        log_err "تعذر استبدال grub.cfg؛ أُعيدت إعدادات GRUB السابقة."
+        return 1
+    fi
+
+    log_ok "تمت إضافة rootflags=subvol=@ مع الحفاظ على معاملات النواة الموجودة."
+    log_info "نسخة الإعدادات السابقة: $backup_dir"
     log_ok "$MSG_BOOTFIX_COMPLETE"
 }
