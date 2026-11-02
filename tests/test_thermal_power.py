@@ -1,4 +1,5 @@
 from unittest.mock import patch
+
 from core.module_base import Severity
 from core.privilege import CommandResult
 from modules.thermal_power import ThermalPowerModule, parse_fan_speeds, parse_process_cpu, parse_temperatures
