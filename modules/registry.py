@@ -13,6 +13,7 @@ from modules.btrfs_snapper import BtrfsSnapperModule
 from modules.dashboard import DashboardModule
 from modules.disk_analyzer import DiskAnalyzerModule
 from modules.disk_optimizer import DiskOptimizerModule
+from modules.disk_space_map import DiskSpaceMapModule
 from modules.driver_manager import DriverManagerModule
 from modules.duplicate_finder import DuplicateFinderModule
 from modules.failed_services import FailedServicesModule
@@ -68,7 +69,7 @@ def get_all_modules():
         BootManagerModule(), BootGuardModule(), StartupManagerModule(),
         RepoManagerModule(), MirrorRankModule(), LocaleManagerModule(),
         TimeManagerModule(), NetworkResetModule(), DriverManagerModule(),
-        DiskAnalyzerModule(), BtrfsSnapperModule(), BootSanityModule(),
+        DiskAnalyzerModule(), DiskSpaceMapModule(), BtrfsSnapperModule(), BootSanityModule(),
         SystemIntegrityModule(), FailedServicesModule(), ThermalPowerModule(),
         ServiceAuditModule(), UserManagerModule(), PrinterManagerModule(),
     ]
