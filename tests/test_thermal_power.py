@@ -4,12 +4,16 @@ from unittest.mock import patch
 
 from core.module_base import Severity
 from core.privilege import CommandResult
-from modules.thermal_power import ThermalPowerModule, parse_process_cpu, parse_temperatures
+from modules.thermal_power import ThermalPowerModule, parse_fan_speeds, parse_process_cpu, parse_temperatures
 
 
 def test_parse_temperatures():
     parsed = parse_temperatures("Package id 0: +82.0°C\nCore 0: +79.0°C\nfan1: 2200 RPM\n")
     assert parsed == [("Package id 0", 82.0), ("Core 0", 79.0)]
+
+
+def test_parse_fan_speeds_ignores_unavailable_pwm():
+    assert parse_fan_speeds("fan1: 2200 RPM\\npwm1: N/A\\n") == [("fan1", 2200)]
 
 
 def test_parse_process_cpu():
