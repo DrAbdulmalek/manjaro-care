@@ -42,6 +42,7 @@ from modules.printer_manager import PrinterManagerModule
 from modules.ram_booster import RamBoosterModule
 from modules.repo_manager import RepoManagerModule
 from modules.report_export import ReportExportModule
+from modules.service_audit import ServiceAuditModule
 from modules.snapper_cleanup import SnapperCleanupModule
 from modules.snapshot_before_update import SnapshotBeforeUpdateModule
 from modules.software_updater import SoftwareUpdaterModule
@@ -51,7 +52,6 @@ from modules.startup_manager import StartupManagerModule
 # 🆕 وحدات CCleaner / TuneUp / ASC / IObit
 from modules.system_cleaner import SystemCleanerModule
 from modules.system_info import SystemInfoModule
-from modules.service_audit import ServiceAuditModule
 from modules.thermal_power import ThermalPowerModule
 from modules.tcp_optimizer import TcpOptimizerModule
 from modules.time_manager import TimeManagerModule
