@@ -43,6 +43,14 @@ def parse_mkinitcpio_preset(text: str) -> list[tuple[str, str]]:
     return rows
 
 
+def enabled_preset_names(text: str) -> set[str]:
+    """قراءة أسماء PRESETS المفعّلة دون تنفيذ ملف shell."""
+    match = re.search(r"^\\s*PRESETS\\s*=\\s*\\(([^)]*)\\)", text, re.MULTILINE)
+    if not match:
+        return set()
+    return set(re.findall(r"""['"]([^'"]+)['"]""", match.group(1)))
+
+
 class SystemIntegrityModule(MaintenanceModule):
     name = "سلامة الإقلاع والنظام"
     slug = "system_integrity"
@@ -115,7 +123,12 @@ class SystemIntegrityModule(MaintenanceModule):
                 content = preset.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            active_presets = enabled_preset_names(content)
             for key, value in parse_mkinitcpio_preset(content):
+                if key == "default_image" and "default" not in active_presets:
+                    continue
+                if key == "fallback_image" and "fallback" not in active_presets:
+                    continue
                 checked += 1
                 target = Path(value)
                 if target.is_absolute() and not target.exists():
