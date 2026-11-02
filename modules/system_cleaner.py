@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import stat
 from pathlib import Path
@@ -18,7 +19,7 @@ from core.module_base import (
     ScanResult,
     Severity,
 )
-from core.privilege import run_privileged
+from core.privilege import run_privileged, run_unprivileged
 
 log = get_logger("system_cleaner")
 
@@ -117,16 +118,14 @@ class SystemCleanerModule(MaintenanceModule):
             if raw_path == "journal":
                 journal = shutil.which("journalctl")
                 if journal:
-                    result_size = __import__("core.privilege", fromlist=["run_unprivileged"]).run_unprivileged(
-                        ["journalctl", "--disk-usage"]
-                    )
+                    result_size = run_unprivileged(["journalctl", "--disk-usage"])
                     if result_size.ok:
                         import re
                         match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*([KMGT]?B)", result_size.stdout, re.I)
                         if match:
                             number = float(match.group(1))
-                            unit = match.group(2).upper()
-                            multiplier = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}.get(unit, 1)
+                            unit = match.group(2).upper().rstrip("B")
+                            multiplier = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}.get(unit, 1)
                             size = int(number * multiplier)
             if size <= 0:
                 continue
@@ -177,10 +176,13 @@ class SystemCleanerModule(MaintenanceModule):
                         description="تخطي كاش pacman لأن paccache غير مثبت؛ لا يوجد fallback للحذف اليدوي."
                     ))
             elif policy == "journal":
-                steps.append(PreviewStep(
-                    description="تقليص سجلات systemd إلى آخر 7 أيام",
-                    command="journalctl --vacuum-time=7d",
-                ))
+                if shutil.which("journalctl"):
+                    steps.append(PreviewStep(
+                        description="تقليص سجلات systemd إلى آخر 7 أيام",
+                        command="journalctl --vacuum-time=7d",
+                    ))
+                else:
+                    steps.append(PreviewStep(description="تخطي سجلات systemd: journalctl غير متاح."))
             else:
                 steps.append(PreviewStep(
                     description=f"للمراجعة فقط — لن يتم حذف {desc}."
