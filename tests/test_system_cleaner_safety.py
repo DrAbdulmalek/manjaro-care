@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import patch
 
 from core.privilege import CommandResult
@@ -36,7 +35,6 @@ def test_cleaner_only_marks_explicit_maintenance_targets_actionable(tmp_path, mo
         "flatpak_app_data": (str(flatpak), "Flatpak data", "review"),
     })
     result = system_cleaner.SystemCleanerModule().scan()
-    by_title = {f.title: f for f in result.findings}
     assert next(f for f in result.findings if "pacman cache" in f.title).actionable
     assert not next(f for f in result.findings if "Trash" in f.title).actionable
     assert not next(f for f in result.findings if "Flatpak data" in f.title).actionable
