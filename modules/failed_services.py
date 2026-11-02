@@ -50,7 +50,7 @@ class FailedServicesModule(MaintenanceModule):
                     "دفعة واحدة؛ قد تكون بعض الحالات متوقعة أو غير قابلة لإعادة التشغيل.\n"
                     + "\n".join(f"journalctl -u {unit} -n 40 --no-pager" for unit in units)
                 ),
-                severity=Severity.WARNING if len(units) <= 2 else Severity.CRITICAL,
+                severity=Severity.WARNING,
                 actionable=False, raw_value=units,
             )
         else:
