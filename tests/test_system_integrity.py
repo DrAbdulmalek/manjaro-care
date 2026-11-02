@@ -20,8 +20,8 @@ def test_parse_root_mount():
 
 
 def test_enabled_preset_names_are_parsed_without_shell_execution():
-    assert enabled_preset_names("PRESETS=('default' 'fallback')\\n") == {"default", "fallback"}
-    assert enabled_preset_names("PRESETS=('default')\\n") == {"default"}
+    assert enabled_preset_names("PRESETS=('default' 'fallback')\n") == {"default", "fallback"}
+    assert enabled_preset_names("PRESETS=('default')\n") == {"default"}
 
 
 def test_parse_mkinitcpio_preset_without_executing_shell():
