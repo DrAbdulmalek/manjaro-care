@@ -172,7 +172,7 @@ manjaro-care --dry-run
 | `btrfs_health` | صحة btrfs: scrub/device stats/SMART/fstrim/أبطأ خدمات إقلاع + إجراءان اختياريان بمعاينة وتأكيد منفصلين | آمن |
 | `boot_sanity` | فحص سلامة الإقلاع على btrfs (تكامل manjaro-doctor + fallback أصلي، إصلاح بنسخة احتياطية) | متوسط |
 | `update_check` | إخبارية: ملفات .pacnew مع أزرار الفروق، تحذير عدم المزامنة والتحديث الجزئي، خدمات فاشلة، أخبار مانجارو | آمن (إخباري) |
-| `failed_services` | يكتشف خدمات systemd الفاشلة ويعيد تشغيلها | آمن |
+| `failed_services` | كشف خدمات systemd الفاشلة وعرض أوامر فحص السجل — دون إعادة تشغيل جماعية | آمن (قراءة فقط) |\n| `thermal_power` | حرارة CPU، أعلى العمليات استهلاكاً، governor/EPP/Turbo، TLP وملف منصة العتاد وتعارض مديري الطاقة | آمن (قراءة فقط) |\n| `service_audit` | تدقيق الخدمات الفاشلة وبقايا update_shutdown.service دون حذف أو تعطيل | آمن (قراءة فقط) |
 | `user_manager` | إدارة المستخدمين والمجموعات | متوسط |
 | `printer_manager` | حالة الطابعات (CUPS) | آمن |
 
