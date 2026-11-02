@@ -40,6 +40,24 @@ def test_scan_reports_rebuild_candidates_only_when_tool_says_so():
     assert any("checkrebuild أظهر" in f.title and "orthanc" in f.detail for f in result.findings)
 
 
+def test_checkrebuild_no_rebuild_message_is_not_a_warning():
+    def fake(args, timeout=30):
+        if args[:2] == ["pacman", "-Dk"]:
+            return CommandResult(0, "", "")
+        if args[:2] == ["pacman", "-Qm"]:
+            return CommandResult(0, "", "")
+        if args == ["checkrebuild"]:
+            return CommandResult(0, "No packages need to be rebuilt.\\n", "")
+        return CommandResult(1, "", "")
+
+    with patch("modules.package_compatibility.run_unprivileged", side_effect=fake), \\
+         patch("modules.package_compatibility.shutil.which", return_value="/usr/bin/checkrebuild"):
+        result = PackageCompatibilityModule().scan()
+
+    assert any("لم يُرجع تحذيرات" in f.title for f in result.findings)
+    assert not any("أظهر عناصر" in f.title for f in result.findings)
+
+
 def test_apply_never_rebuilds_packages():
     result = PackageCompatibilityModule().apply()
     assert result.success
