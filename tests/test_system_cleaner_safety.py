@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from core.module_base import ScanFinding, ScanResult, Severity
 from core.privilege import CommandResult
 from modules import system_cleaner
 
@@ -47,9 +48,13 @@ def test_apply_runs_only_allowlisted_maintenance_commands():
         calls.append(args)
         return CommandResult(0, "ok", "")
 
-    with patch("modules.system_cleaner.shutil.which", side_effect=lambda name: f"/usr/bin/{name}"), patch(
-        "modules.system_cleaner.run_privileged", side_effect=fake_run
-    ):
+    report = ScanResult(module_name="System Cleaner", findings=[
+        ScanFinding("pacman cache", "size", Severity.INFO, True, {"policy": "paccache"}),
+        ScanFinding("journal", "size", Severity.INFO, True, {"policy": "journal"}),
+    ])
+    with patch.object(system_cleaner.SystemCleanerModule, "scan", return_value=report), patch(
+        "modules.system_cleaner.shutil.which", side_effect=lambda name: f"/usr/bin/{name}"
+    ), patch("modules.system_cleaner.run_privileged", side_effect=fake_run):
         result = system_cleaner.SystemCleanerModule().apply()
 
     assert result.success
@@ -60,7 +65,12 @@ def test_apply_runs_only_allowlisted_maintenance_commands():
 
 
 def test_preview_never_contains_recursive_delete_commands():
-    with patch("modules.system_cleaner.shutil.which", return_value="/usr/bin/tool"):
+    report = ScanResult(module_name="System Cleaner", findings=[
+        ScanFinding("Trash", "review", Severity.INFO, False, {"policy": "review"})
+    ])
+    with patch.object(system_cleaner.SystemCleanerModule, "scan", return_value=report), patch(
+        "modules.system_cleaner.shutil.which", return_value="/usr/bin/tool"
+    ):
         steps = system_cleaner.SystemCleanerModule().preview()
     commands = [step.command or "" for step in steps]
     assert all("rm -rf" not in command for command in commands)
