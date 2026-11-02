@@ -34,6 +34,7 @@ from modules.mirror_rank import MirrorRankModule
 # الوحدات الأصلية
 from modules.network_reset import NetworkResetModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
+from modules.package_compatibility import PackageCompatibilityModule
 from modules.pacman_maintenance import PacmanMaintenanceModule
 from modules.pdf_toolkit import PdfToolkitModule
 from modules.performance_optimizer import PerformanceOptimizerModule
@@ -51,6 +52,7 @@ from modules.startup_manager import StartupManagerModule
 # 🆕 وحدات CCleaner / TuneUp / ASC / IObit
 from modules.system_cleaner import SystemCleanerModule
 from modules.system_info import SystemInfoModule
+from modules.system_integrity import SystemIntegrityModule
 from modules.tcp_optimizer import TcpOptimizerModule
 from modules.time_manager import TimeManagerModule
 from modules.update_check import UpdateCheckModule
@@ -63,6 +65,7 @@ def get_all_modules():
         DashboardModule(),
         SystemInfoModule(),
         PacmanMaintenanceModule(),
+        PackageCompatibilityModule(),
         OneClickMaintenanceModule(),
         StartupImpactModule(),
         ReportExportModule(),  # تقرير منقّى (نافذة معاينة مخصصة)
@@ -121,6 +124,7 @@ def get_all_modules():
         DiskAnalyzerModule(),
         BtrfsSnapperModule(),
         BootSanityModule(),
+        SystemIntegrityModule(),
 
         # الخدمات والمستخدمين
         FailedServicesModule(),
