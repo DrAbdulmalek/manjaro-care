@@ -124,7 +124,7 @@ def _collect_update_log_evidence() -> tuple[list[str], list[str]]:
                     candidates.append((path.stat().st_mtime, path))
             except OSError:
                 continue
-        candidates = [path for _, path in sorted(candidates, reverse=True)[:3]]
+        candidates = [path for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)[:3]]
     except FileNotFoundError:
         return [], [f"مجلد السجلات غير موجود: {_LOG_DIR}"]
     except OSError as exc:
