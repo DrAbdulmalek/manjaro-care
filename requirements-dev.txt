@@ -4,3 +4,5 @@ pytest>=8
 ruff>=0.6
 # مطلوب لاختبارات واجهة الإلغاء (QThread/QProgressDialog).
 PyQt5>=5.15.11
+# needed so tests importing modules.registry work: ram_booster imports it at top level
+psutil>=5.9
