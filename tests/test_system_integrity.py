@@ -51,7 +51,7 @@ def test_scan_reports_fstab_problem_and_missing_initramfs_paths():
     with patch("modules.system_integrity.run_unprivileged", side_effect=fake), \
          patch("modules.system_integrity.shutil.which", return_value="/usr/bin/grub-script-check"), \
          patch.object(Path, "glob", return_value=[Path("/etc/mkinitcpio.d/linux.preset")]), \
-         patch.object(Path, "read_text", return_value='default_image="/boot/not-here.img"\n'), \
+         patch.object(Path, "read_text", return_value='PRESETS=("default")\ndefault_image="/boot/not-here.img"\nfallback_image="/boot/not-active.img"\n'), \
          patch.object(Path, "is_file", return_value=True), \
          patch.object(Path, "exists", return_value=False):
         result = SystemIntegrityModule().scan()
