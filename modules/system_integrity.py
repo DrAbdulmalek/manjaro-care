@@ -45,7 +45,7 @@ def parse_mkinitcpio_preset(text: str) -> list[tuple[str, str]]:
 
 def enabled_preset_names(text: str) -> set[str]:
     """قراءة أسماء PRESETS المفعّلة دون تنفيذ ملف shell."""
-    match = re.search(r"^\\s*PRESETS\\s*=\\s*\\(([^)]*)\\)", text, re.MULTILINE)
+    match = re.search(r"^\s*PRESETS\s*=\s*\(([^)]*)\)", text, re.MULTILINE)
     if not match:
         return set()
     return set(re.findall(r"""['"]([^'"]+)['"]""", match.group(1)))
