@@ -64,9 +64,7 @@ class ThermalPowerModule(MaintenanceModule):
     def scan(self) -> ScanResult:
         findings: list[ScanFinding] = []
 
-        sensors = run_unprivileged(["sensors", "-u"])
-        if not sensors.ok:
-            sensors = run_unprivileged(["sensors"])
+        sensors = run_unprivileged(["sensors"])
         temperatures = parse_temperatures(sensors.stdout) if sensors.ok else []
         if temperatures:
             hottest = max(value for _, value in temperatures)
