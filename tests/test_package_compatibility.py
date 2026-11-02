@@ -47,12 +47,15 @@ def test_checkrebuild_no_rebuild_message_is_not_a_warning():
         if args[:2] == ["pacman", "-Qm"]:
             return CommandResult(0, "", "")
         if args == ["checkrebuild"]:
-            return CommandResult(0, "No packages need to be rebuilt.\\n", "")
+            return CommandResult(0, "No packages need to be rebuilt.\n", "")
         return CommandResult(1, "", "")
 
-    with patch("modules.package_compatibility.run_unprivileged", side_effect=fake), \\
-         patch("modules.package_compatibility.shutil.which", return_value="/usr/bin/checkrebuild"):
-        result = PackageCompatibilityModule().scan()
+    with patch("modules.package_compatibility.run_unprivileged", side_effect=fake):
+        with patch(
+            "modules.package_compatibility.shutil.which",
+            return_value="/usr/bin/checkrebuild",
+        ):
+            result = PackageCompatibilityModule().scan()
 
     assert any("لم يُرجع تحذيرات" in f.title for f in result.findings)
     assert not any("أظهر عناصر" in f.title for f in result.findings)
