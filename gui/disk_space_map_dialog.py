@@ -3,12 +3,12 @@
 """Asynchronous, read-only treemap view for the bounded home space inventory."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import QRectF, Qt
 from PyQt5.QtGui import QBrush, QColor, QPen
 from PyQt5.QtWidgets import (
     QDialog, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView,
-    QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QVBoxLayout,
+    QHeaderView, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
+    QVBoxLayout,
 )
 
 from gui.workers import BusyCloseGuardMixin, FunctionWorker
