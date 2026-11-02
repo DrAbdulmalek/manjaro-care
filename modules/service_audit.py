@@ -98,8 +98,12 @@ def _existing_unit_files() -> list[str]:
 def _read_relevant_lines(path: Path, limit: int = 20) -> tuple[list[str], str | None]:
     """Read bounded log content and return only narrowly matched diagnostic lines."""
     try:
-        with path.open("r", encoding="utf-8", errors="replace") as stream:
-            lines = stream.readlines()[-120:]
+        with path.open("rb") as stream:
+            stream.seek(0, 2)
+            size = stream.tell()
+            stream.seek(max(0, size - 256 * 1024))
+            chunk = stream.read().decode("utf-8", errors="replace")
+            lines = chunk.splitlines()[-120:]
     except OSError as exc:
         return [], str(exc)
     matches = []
@@ -113,11 +117,14 @@ def _collect_update_log_evidence() -> tuple[list[str], list[str]]:
     matches = []
     notes = []
     try:
-        candidates = sorted(
-            (path for path in _LOG_DIR.iterdir() if path.is_file()),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )[:3]
+        candidates = []
+        for path in _LOG_DIR.iterdir():
+            try:
+                if path.is_file():
+                    candidates.append((path.stat().st_mtime, path))
+            except OSError:
+                continue
+        candidates = [path for _, path in sorted(candidates, reverse=True)[:3]]
     except FileNotFoundError:
         return [], [f"مجلد السجلات غير موجود: {_LOG_DIR}"]
     except OSError as exc:
