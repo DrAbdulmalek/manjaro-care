@@ -73,7 +73,14 @@ class PackageCompatibilityModule(MaintenanceModule):
         if shutil.which("checkrebuild"):
             rebuild = run_unprivileged(["checkrebuild"])
             output = (rebuild.stdout + "\n" + rebuild.stderr).strip()
-            if rebuild.ok and not output:
+            normalized = output.casefold()
+            no_rebuild_needed = (
+                not output
+                or "no packages need to be rebuilt" in normalized
+                or "no packages require rebuilding" in normalized
+                or "no rebuilds needed" in normalized
+            )
+            if rebuild.ok and no_rebuild_needed:
                 findings.append(ScanFinding(
                     title="checkrebuild لم يُرجع تحذيرات",
                     detail="لم تظهر حزم تتطلب إعادة بناء في مخرجات الأداة.",
