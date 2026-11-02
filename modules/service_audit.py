@@ -85,23 +85,20 @@ def _unit_state(unit: str) -> dict[str, str] | None:
 
 
 def _existing_unit_files() -> list[str]:
+    """Find exact unit/drop-in paths in known systemd search directories."""
     found = []
     for unit in _UNIT_NAMES:
         for directory in _UNIT_PATHS:
             path = directory / unit
             try:
-                if path.is_file():
+                if path.exists() or path.is_symlink():
                     found.append(str(path))
             except OSError:
                 continue
-        dropin_dirs = (
-            Path("/etc/systemd/system") / f"{unit}.d",
-            Path("/usr/lib/systemd/system") / f"{unit}.d",
-        )
-        for directory in dropin_dirs:
+            dropin_dir = directory / f"{unit}.d"
             try:
-                if directory.is_dir() and any(directory.iterdir()):
-                    found.append(str(directory))
+                if dropin_dir.is_dir() and any(dropin_dir.iterdir()):
+                    found.append(str(dropin_dir))
             except OSError:
                 continue
     return found
