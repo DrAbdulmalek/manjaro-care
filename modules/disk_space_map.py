@@ -118,11 +118,11 @@ class DiskSpaceMapModule(MaintenanceModule):
         except (OSError, ValueError) as exc:
             return ScanResult(module_name=self.name, error=f"تعذّر فحص مساحة المنزل: {exc}")
         largest = result.entries[:5]
-        detail = "\\n".join(f"{e.name}: {human_size(e.size_bytes)}" for e in largest)
+        detail = "\n".join(f"{e.name}: {human_size(e.size_bytes)}" for e in largest)
         if result.truncated:
-            detail += "\\nتنبيه: النتائج جزئية بسبب بلوغ حد العناصر أو العمق."
+            detail += "\nتنبيه: النتائج جزئية بسبب بلوغ حد العناصر أو العمق."
         if result.skipped_entries:
-            detail += f"\\nعناصر متعذرة/مستبعدة: {result.skipped_entries}"
+            detail += f"\nعناصر متعذرة/مستبعدة: {result.skipped_entries}"
         return ScanResult(module_name=self.name, findings=[ScanFinding(
             title=f"تم تحليل {len(result.entries)} عنصراً مباشراً في {result.root}",
             detail=detail or "لا توجد بيانات قابلة للعرض.",
