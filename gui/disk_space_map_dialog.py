@@ -91,7 +91,7 @@ class DiskSpaceMapDialog(BusyCloseGuardMixin, QDialog):
         self.refresh_btn.clicked.connect(self._start_scan)
         row.addWidget(self.refresh_btn)
         close = QPushButton("إغلاق")
-        close.clicked.connect(self.reject
+        close.clicked.connect(self.reject)
         row.addWidget(close)
         layout.addLayout(row)
         self._start_scan()
