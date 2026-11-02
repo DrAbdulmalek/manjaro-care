@@ -13,7 +13,7 @@ def test_parse_temperatures():
 
 
 def test_parse_fan_speeds_ignores_unavailable_pwm():
-    assert parse_fan_speeds("fan1: 2200 RPM\\npwm1: N/A\\n") == [("fan1", 2200)]
+    assert parse_fan_speeds("fan1: 2200 RPM\npwm1: N/A\n") == [("fan1", 2200)]
 
 
 def test_parse_process_cpu():
