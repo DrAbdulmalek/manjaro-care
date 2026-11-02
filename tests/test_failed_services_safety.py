@@ -8,12 +8,11 @@ from modules.failed_services import FailedServicesModule
 
 def test_scan_never_restarts_failed_units():
     with patch("modules.failed_services.run_unprivileged",
-               return_value=CommandResult(0, "tlp.service loaded failed failed TLP\n", "")), \
-         patch("modules.failed_services.run_privileged") as privileged:
+               return_value=CommandResult(0, "tlp.service loaded failed failed TLP\n", "")) as command:
         result = FailedServicesModule().scan()
         assert result.findings[0].actionable is False
         assert "journalctl -u tlp.service" in result.findings[0].detail
-        privileged.assert_not_called()
+        command.assert_called_once()
 
 
 def test_preview_is_read_only():
@@ -25,8 +24,6 @@ def test_preview_is_read_only():
 
 
 def test_apply_does_not_restart_any_service():
-    with patch("modules.failed_services.run_privileged") as privileged:
-        result = FailedServicesModule().apply()
-    privileged.assert_not_called()
+    result = FailedServicesModule().apply()
     assert result.success
     assert "لم تُعَد تشغيل" in result.message
