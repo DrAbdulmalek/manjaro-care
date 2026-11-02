@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from modules.duplicate_finder import (
     DuplicateFinderModule,
     _find_duplicates,
