@@ -40,7 +40,7 @@ def build_space_map(root: str | Path = _DEFAULT_ROOT, max_entries: int = _MAX_EN
     if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
         raise ValueError("The selected root must be a real directory, not a symlink")
 
-    totals: dict[str, int] = {}
+    root_device = root_stat.st_dev\n    totals: dict[str, int] = {}
     kinds: dict[str, str] = {}
     scanned = skipped = 0
     truncated = False
