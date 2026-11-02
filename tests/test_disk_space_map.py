@@ -43,3 +43,30 @@ def test_entry_limit_is_bounded(tmp_path: Path):
     result = build_space_map(tmp_path, max_entries=5)
     assert result.scanned_entries == 5
     assert result.truncated is True
+
+ 
+ 
+def test_depth_limit_is_reported_as_partial(tmp_path: Path):
+    current = tmp_path
+    for index in range(4):
+        current = current / f"level{index}"
+        current.mkdir()
+    (current / "payload.bin").write_bytes(b"x" * 50)
+    result = build_space_map(tmp_path, max_depth=1)
+    assert result.truncated is True
+
+
+def test_treemap_tiles_partition_the_requested_area():
+    from PyQt5.QtCore import QRectF
+    from gui.disk_space_map_dialog import _treemap_rectangles
+
+    entries = [
+        type("Entry", (), {"name": "large", "path": "/large", "size_bytes": 900, "kind": "file"})(),
+        type("Entry", (), {"name": "small", "path": "/small", "size_bytes": 100, "kind": "file"})(),
+    ]
+    bounds = QRectF(0, 0, 100, 50)
+    tiles = _treemap_rectangles(entries, bounds)
+    assert len(tiles) == 2
+    assert sum(rect.width() * rect.height() for _, rect in tiles) == pytest.approx(5000)
+    areas = [rect.width() * rect.height() for _, rect in tiles]
+    assert areas[0] / areas[1] == pytest.approx(9)
