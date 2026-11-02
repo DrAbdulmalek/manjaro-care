@@ -171,17 +171,25 @@ class ThermalPowerModule(MaintenanceModule):
 
         tlp_active = run_unprivileged(["systemctl", "is-active", "tlp.service"])
         ppd_active = run_unprivileged(["systemctl", "is-active", "power-profiles-daemon.service"])
-        tlp_on = tlp_active.stdout.strip() == "active"
-        ppd_on = ppd_active.stdout.strip() == "active"
-        if tlp_on and ppd_on:
+        def service_state(result):
+            if result.returncode == 0 and result.stdout.strip() == "active":
+                return "active"
+            if result.returncode in {3, 4} and result.stdout.strip() in {"inactive", "failed", "unknown"}:
+                return result.stdout.strip()
+            return "unknown"
+
+        tlp_state = service_state(tlp_active)
+        ppd_state = service_state(ppd_active)
+        if tlp_state == "active" and ppd_state == "active":
             findings.append(ScanFinding(
                 title="احتمال تعارض: TLP و power-profiles-daemon يعملان معاً",
                 detail="لا توقف أياً منهما تلقائياً. راجع إعدادات التوزيعة وحدد مدير طاقة واحداً بعد التحقق.",
                 severity=Severity.WARNING, actionable=False,
             ))
         else:
+            label = {"active": "نشط", "inactive": "غير نشط", "failed": "فاشل", "unknown": "غير معروف"}
             findings.append(ScanFinding(
-                title=f"TLP: {'نشط' if tlp_on else 'غير نشط'} | power-profiles-daemon: {'نشط' if ppd_on else 'غير نشط'}",
+                title=f"TLP: {label[tlp_state]} | power-profiles-daemon: {label[ppd_state]}",
                 detail="هذه حالة الخدمات فقط؛ لا تعني وحدها وجود خلل.",
                 severity=Severity.INFO, actionable=False,
             ))
