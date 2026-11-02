@@ -91,7 +91,7 @@ class DiskSpaceMapDialog(BusyCloseGuardMixin, QDialog):
         self.refresh_btn.clicked.connect(self._start_scan)
         row.addWidget(self.refresh_btn)
         close = QPushButton("إغلاق")
-        close.clicked.connect(self.accept)
+        close.clicked.connect(self.reject)
         row.addWidget(close)
         layout.addLayout(row)
         self._start_scan()
@@ -121,6 +121,7 @@ class DiskSpaceMapDialog(BusyCloseGuardMixin, QDialog):
             self.table.setItem(index, 0, QTableWidgetItem(entry.name))
             self.table.setItem(index, 1, QTableWidgetItem(human_size(entry.size_bytes)))
             self.table.setItem(index, 2, QTableWidgetItem("مجلد" if entry.kind == "directory" else "ملف"))
+        self.table.setSortingEnabled(True)
 
         self.scene.clear()
         visible = entries[:30]
