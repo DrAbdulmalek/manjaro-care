@@ -3,12 +3,12 @@
 """Asynchronous, read-only treemap view for the bounded home space inventory."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import QRectF, Qt
 from PyQt5.QtGui import QBrush, QColor, QPen
 from PyQt5.QtWidgets import (
     QDialog, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView,
-    QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QVBoxLayout,
+    QHeaderView, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
+    QVBoxLayout,
 )
 
 from gui.workers import BusyCloseGuardMixin, FunctionWorker
@@ -91,7 +91,7 @@ class DiskSpaceMapDialog(BusyCloseGuardMixin, QDialog):
         self.refresh_btn.clicked.connect(self._start_scan)
         row.addWidget(self.refresh_btn)
         close = QPushButton("إغلاق")
-        close.clicked.connect(self.accept)
+        close.clicked.connect(self.reject
         row.addWidget(close)
         layout.addLayout(row)
         self._start_scan()
