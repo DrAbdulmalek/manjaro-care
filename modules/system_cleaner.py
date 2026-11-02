@@ -112,7 +112,7 @@ class SystemCleanerModule(MaintenanceModule):
     def scan(self) -> ScanResult:
         findings = []
         total_size = 0
-        for key, (raw_path, desc, policy) in _CLEAN_TARGETS.items():
+        for _key, (raw_path, desc, policy) in _CLEAN_TARGETS.items():
             path = _expand(raw_path)
             size = _get_size(path) if raw_path != "journal" else 0
             if raw_path == "journal":
@@ -163,7 +163,7 @@ class SystemCleanerModule(MaintenanceModule):
 
     def preview(self) -> list[PreviewStep]:
         steps = []
-        for key, (_raw_path, desc, policy) in _CLEAN_TARGETS.items():
+        for _key, (_raw_path, desc, policy) in _CLEAN_TARGETS.items():
             if policy == "paccache":
                 if shutil.which("paccache"):
                     steps.append(PreviewStep(
