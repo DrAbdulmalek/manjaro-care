@@ -161,10 +161,19 @@ class SystemCleanerModule(MaintenanceModule):
             ))
         return ScanResult(module_name=self.name, findings=findings)
 
+    def _actionable_policies(self) -> set[str]:
+        report = self.scan()
+        return {
+            finding.raw_value.get("policy")
+            for finding in report.findings
+            if finding.actionable and isinstance(finding.raw_value, dict)
+        }
+
     def preview(self) -> list[PreviewStep]:
         steps = []
+        policies = self._actionable_policies()
         for _key, (_raw_path, desc, policy) in _CLEAN_TARGETS.items():
-            if policy == "paccache":
+            if policy == "paccache" and policy in policies:
                 if shutil.which("paccache"):
                     steps.append(PreviewStep(
                         description=f"{desc}: الإبقاء على آخر نسختين من كل حزمة",
@@ -174,7 +183,7 @@ class SystemCleanerModule(MaintenanceModule):
                     steps.append(PreviewStep(
                         description="تخطي كاش pacman لأن paccache غير مثبت؛ لا يوجد fallback للحذف اليدوي."
                     ))
-            elif policy == "journal":
+            elif policy == "journal" and policy in policies:
                 if shutil.which("journalctl"):
                     steps.append(PreviewStep(
                         description="تقليص سجلات systemd إلى آخر 7 أيام",
@@ -192,23 +201,26 @@ class SystemCleanerModule(MaintenanceModule):
         logs = []
         failures = []
         applied = []
-        if shutil.which("paccache"):
+        policies = self._actionable_policies()
+        if "paccache" in policies and shutil.which("paccache"):
             result = run_privileged(["paccache", "-rk2"])
             logs.append(result.stdout + result.stderr)
             if result.ok:
                 applied.append("كاش pacman")
             else:
                 failures.append("فشل تقليص كاش pacman")
-        else:
+        elif "paccache" in policies:
             logs.append("تم تخطي كاش pacman: paccache غير مثبت؛ لم يُستخدم حذف بديل.")
 
-        if shutil.which("journalctl"):
+        if "journal" in policies and shutil.which("journalctl"):
             result = run_privileged(["journalctl", "--vacuum-time=7d"])
             logs.append(result.stdout + result.stderr)
             if result.ok:
                 applied.append("سجلات systemd الأقدم من 7 أيام")
             else:
                 failures.append("فشل تقليص سجلات systemd")
+        if "journal" in policies and not shutil.which("journalctl"):
+            logs.append("تم تخطي سجلات systemd: journalctl غير متاح.")
         if failures:
             return ApplyResult(
                 success=False,
