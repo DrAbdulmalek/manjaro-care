@@ -120,8 +120,7 @@ class SystemCleanerModule(MaintenanceModule):
                 if journal:
                     result_size = run_unprivileged(["journalctl", "--disk-usage"])
                     if result_size.ok:
-                        import re
-                        match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*([KMGT]?B)", result_size.stdout, re.I)
+                        match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*([KMGT]?B?)", result_size.stdout, re.I)
                         if match:
                             number = float(match.group(1))
                             unit = match.group(2).upper().rstrip("B")
