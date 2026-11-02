@@ -191,7 +191,7 @@ class SystemCleanerModule(MaintenanceModule):
                     ))
                 else:
                     steps.append(PreviewStep(description="تخطي سجلات systemd: journalctl غير متاح."))
-            else:
+            elif policy == "review":
                 steps.append(PreviewStep(
                     description=f"للمراجعة فقط — لن يتم حذف {desc}."
                 ))
@@ -230,7 +230,7 @@ class SystemCleanerModule(MaintenanceModule):
         if not applied:
             return ApplyResult(
                 success=True,
-                message="لم يُنفذ أي حذف: أدوات التنظيف الآمن غير متاحة. بقيت جميع الملفات كما هي.",
+                message="لم يُنفذ أي إجراء: الفحص الحالي لم يحدد هدفاً مسموحاً أو أن أداة الصيانة غير متاحة. بقيت الملفات كما هي.",
                 log_output="\n".join(logs),
             )
         return ApplyResult(
