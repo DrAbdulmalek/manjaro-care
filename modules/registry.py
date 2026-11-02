@@ -17,8 +17,8 @@ from modules.disk_space_map import DiskSpaceMapModule
 from modules.driver_manager import DriverManagerModule
 from modules.duplicate_finder import DuplicateFinderModule
 from modules.failed_services import FailedServicesModule
-from modules.firmware_overview import FirmwareOverviewModule
 from modules.file_shredder import FileShredderModule
+from modules.firmware_overview import FirmwareOverviewModule
 from modules.firewall_manager import FirewallManagerModule
 from modules.flatpak_cleanup import FlatpakCleanupModule
 from modules.font_toolkit import FontToolkitModule
