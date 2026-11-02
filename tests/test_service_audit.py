@@ -6,7 +6,7 @@ from core.privilege import CommandResult
 from modules.service_audit import ServiceAuditModule
 
 
-def test_reports_retired_units_and_keeps_script_as_non_active_residue():
+def test_reports_retired_units_without_inventing_active_service():
     state = CommandResult(
         0,
         "LoadState=not-found\nActiveState=inactive\n"
@@ -14,7 +14,7 @@ def test_reports_retired_units_and_keeps_script_as_non_active_residue():
         "",
     )
     with patch("modules.service_audit.run_unprivileged", return_value=state), \
-         patch("modules.service_audit.Path.is_file", return_value=True), \
+         patch("modules.service_audit.Path.is_file", return_value=False), \
          patch("modules.service_audit.Path.iterdir", side_effect=FileNotFoundError), \
          patch("modules.service_audit.Path.open", side_effect=FileNotFoundError):
         result = ServiceAuditModule().scan()
