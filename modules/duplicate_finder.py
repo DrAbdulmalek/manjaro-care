@@ -52,7 +52,7 @@ def _hash_file(path: Path, block_size: int = _BLOCK_SIZE) -> str:
         ):
             return ""
         return digest.hexdigest()
-    except (OSError, PermissionError, ValueError):
+    except (OSError, ValueError):
         return ""
     finally:
         if fd is not None:
@@ -95,10 +95,7 @@ def _walk_files(paths: list[str], max_files: int = _MAX_FILES) -> list[tuple[Pat
                         continue
                     child = Path(entry.path)
                     if stat.S_ISDIR(est.st_mode):
-                        relative = child.as_posix().lower()
                         if entry.name.startswith(".") or entry.name.lower() in _SKIP_DIRS:
-                            continue
-                        if relative.endswith("/.local/share/trash"):
                             continue
                         stack.append(child)
                     elif stat.S_ISREG(est.st_mode) and est.st_size >= _MIN_SIZE:
