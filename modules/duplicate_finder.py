@@ -159,6 +159,8 @@ class DuplicateFinderModule(MaintenanceModule):
             by_size[size].append((path, inode))
 
         duplicates: dict[str, list[str]] = {}
+        duplicate_sizes: dict[str, int] = {}
+        wasted_bytes = 0
         seen_inodes: set[tuple[int, int]] = set()
         for _size, group in by_size.items():
             if len(group) < 2:
@@ -174,17 +176,14 @@ class DuplicateFinderModule(MaintenanceModule):
             for digest, matches in hashes.items():
                 if len(matches) > 1:
                     duplicates[digest] = matches
+                    duplicate_sizes[digest] = _size
+                    wasted_bytes += _size * (len(matches) - 1)
                     if len(duplicates) >= _MAX_GROUPS:
                         break
             if len(duplicates) >= _MAX_GROUPS:
                 break
 
         duplicate_count = sum(len(files) - 1 for files in duplicates.values())
-        wasted_bytes = sum(
-            Path(files[0]).stat().st_size * (len(files) - 1)
-            for files in duplicates.values()
-            if files and Path(files[0]).exists()
-        )
         truncated = len(candidates) >= _MAX_FILES
         if duplicate_count:
             lines = []
