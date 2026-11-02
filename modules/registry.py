@@ -50,7 +50,7 @@ from modules.startup_manager import StartupManagerModule
 
 # 🆕 وحدات CCleaner / TuneUp / ASC / IObit
 from modules.system_cleaner import SystemCleanerModule
-from modules.system_info import SystemInfoModule
+from modules.system_info import SystemInfoModule\nfrom modules.service_audit import ServiceAuditModule\nfrom modules.thermal_power import ThermalPowerModule
 from modules.tcp_optimizer import TcpOptimizerModule
 from modules.time_manager import TimeManagerModule
 from modules.update_check import UpdateCheckModule
