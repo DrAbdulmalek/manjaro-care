@@ -6,7 +6,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QProcess
+from PyQt5.QtCore import QProcess, Qt
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFileDialog, QHBoxLayout, QLabel, QMessageBox,
     QPushButton, QTextEdit, QVBoxLayout,
@@ -56,7 +56,7 @@ class FirmwareOverviewDialog(BusyCloseGuardMixin, QDialog):
         self.firmware_btn.clicked.connect(self._reboot_to_firmware)
         row.addWidget(self.firmware_btn)
         close = QPushButton("إغلاق")
-        close.clicked.connect(self.accept)
+        close.clicked.connect(self.reject
         row.addWidget(close)
         layout.addLayout(row)
         self._start_scan()
