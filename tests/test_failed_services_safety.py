@@ -27,3 +27,20 @@ def test_apply_does_not_restart_any_service():
     result = FailedServicesModule().apply()
     assert result.success
     assert "لم تُعَد تشغيل" in result.message
+
+
+def test_module_source_has_no_privileged_or_restart_path():
+    """حرس هيكلي ضد انتكاسة سلوك إعادة التشغيل الجماعي المحذوف.
+
+    الوحدة لا تستورد run_privileged أصلاً (قصد)؛ إن أُعيد إدخال أي مسار
+    إعادة تشغيل أو تنفيذ مرتفع الصلاحيات مستقبلاً فسيفشل هذا الاختبار.
+    """
+    import inspect
+
+    from modules import failed_services
+
+    source = inspect.getsource(failed_services)
+    assert "run_privileged" not in source
+    assert "restart" not in source
+    assert "reset-failed" not in source
+    assert "try-restart" not in source
