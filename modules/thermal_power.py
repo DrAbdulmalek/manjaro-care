@@ -8,8 +8,13 @@ import shutil
 from pathlib import Path
 
 from core.module_base import (
-    ApplyResult, MaintenanceModule, PreviewStep, RiskLevel,
-    ScanFinding, ScanResult, Severity,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 from core.privilege import run_unprivileged
 
