@@ -48,11 +48,11 @@ from modules.snapshot_before_update import SnapshotBeforeUpdateModule
 from modules.software_updater import SoftwareUpdaterModule
 from modules.startup_impact import StartupImpactModule
 from modules.startup_manager import StartupManagerModule
-from modules.system_integrity import SystemIntegrityModule
 
 # 🆕 وحدات CCleaner / TuneUp / ASC / IObit
 from modules.system_cleaner import SystemCleanerModule
 from modules.system_info import SystemInfoModule
+from modules.system_integrity import SystemIntegrityModule
 from modules.tcp_optimizer import TcpOptimizerModule
 from modules.time_manager import TimeManagerModule
 from modules.update_check import UpdateCheckModule
