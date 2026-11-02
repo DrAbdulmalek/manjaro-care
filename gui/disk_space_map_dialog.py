@@ -124,7 +124,6 @@ class DiskSpaceMapDialog(BusyCloseGuardMixin, QDialog):
 
         self.scene.clear()
         visible = entries[:30]
-        total = sum(max(1, entry.size_bytes) for entry in visible)
         bounds = QRectF(0, 0, 900, 330)
         for index, (entry, rect) in enumerate(_treemap_rectangles(visible, bounds)):
             tile = QGraphicsRectItem(rect.adjusted(1, 1, -1, -1))
