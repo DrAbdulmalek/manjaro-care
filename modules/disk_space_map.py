@@ -8,7 +8,10 @@ import stat
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.module_base import ApplyResult, MaintenanceModule, PreviewStep, RiskLevel, ScanFinding, ScanResult, Severity
+from core.module_base import (
+    ApplyResult, MaintenanceModule, PreviewStep, RiskLevel, ScanFinding,
+    ScanResult, Severity,
+)
 
 _MAX_ENTRIES = 30_000
 _MAX_DEPTH = 6
@@ -32,15 +35,21 @@ class SpaceMapResult:
     truncated: bool
 
 
-def build_space_map(root: str | Path = _DEFAULT_ROOT, max_entries: int = _MAX_ENTRIES,
-                    max_depth: int = _MAX_DEPTH) -> SpaceMapResult:
-    """Aggregate immediate children without following symlinks; never mutates files."""
+def build_space_map(
+    root: str | Path = _DEFAULT_ROOT,
+    max_entries: int = _MAX_ENTRIES,
+    max_depth: int = _MAX_DEPTH,
+) -> SpaceMapResult:
+    """Aggregate direct children without following links or crossing filesystems."""
+    if max_entries < 1 or max_depth < 0:
+        raise ValueError("max_entries must be positive and max_depth non-negative")
     base = Path(root).expanduser()
     root_stat = base.lstat()
     if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
         raise ValueError("The selected root must be a real directory, not a symlink")
 
-    root_device = root_stat.st_dev\n    totals: dict[str, int] = {}
+    root_device = root_stat.st_dev
+    totals: dict[str, int] = {}
     kinds: dict[str, str] = {}
     scanned = skipped = 0
     truncated = False
@@ -57,7 +66,7 @@ def build_space_map(root: str | Path = _DEFAULT_ROOT, max_entries: int = _MAX_EN
                     scanned += 1
                     try:
                         st = item.stat(follow_symlinks=False)
-                        if stat.S_ISLNK(st.st_mode):
+                        if stat.S_ISLNK(st.st_mode) or st.st_dev != root_device:
                             skipped += 1
                             continue
                         if depth == 0:
@@ -68,8 +77,11 @@ def build_space_map(root: str | Path = _DEFAULT_ROOT, max_entries: int = _MAX_EN
                             label = top_name
                         if stat.S_ISREG(st.st_mode):
                             totals[label] = totals.get(label, 0) + st.st_size
-                        elif stat.S_ISDIR(st.st_mode) and depth < max_depth:
-                            stack.append((Path(item.path), depth + 1, label))
+                        elif stat.S_ISDIR(st.st_mode):
+                            if depth < max_depth:
+                                stack.append((Path(item.path), depth + 1, label))
+                            else:
+                                truncated = True
                     except OSError:
                         skipped += 1
         except OSError:
@@ -106,11 +118,11 @@ class DiskSpaceMapModule(MaintenanceModule):
         except (OSError, ValueError) as exc:
             return ScanResult(module_name=self.name, error=f"تعذّر فحص مساحة المنزل: {exc}")
         largest = result.entries[:5]
-        detail = "\n".join(f"{e.name}: {human_size(e.size_bytes)}" for e in largest)
+        detail = "\\n".join(f"{e.name}: {human_size(e.size_bytes)}" for e in largest)
         if result.truncated:
-            detail += "\nتوقف الفحص عند بلوغ الحد الوقائي؛ الأرقام جزئية."
+            detail += "\\nتنبيه: النتائج جزئية بسبب بلوغ حد العناصر أو العمق."
         if result.skipped_entries:
-            detail += f"\nعناصر متعذرة/مستبعدة: {result.skipped_entries}"
+            detail += f"\\nعناصر متعذرة/مستبعدة: {result.skipped_entries}"
         return ScanResult(module_name=self.name, findings=[ScanFinding(
             title=f"تم تحليل {len(result.entries)} عنصراً مباشراً في {result.root}",
             detail=detail or "لا توجد بيانات قابلة للعرض.",
