@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from core.privilege import CommandResult
 from modules import firmware_overview
 
