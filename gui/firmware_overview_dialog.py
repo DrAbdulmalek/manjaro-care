@@ -49,14 +49,14 @@ class FirmwareOverviewDialog(BusyCloseGuardMixin, QDialog):
         self.save_btn.setEnabled(False)
         row.addWidget(self.save_btn)
         self.firmware_btn = QPushButton("إعادة التشغيل إلى إعدادات UEFI")
-        self.firmware_btn.setToolTip("يحفظ النظام طلب دخول إعدادات Firmware ثم يعيد تشغيل الجهاز.")
+        self.firmware_btn.setToolTip("يرسل طلباً إلى النظام للدخول إلى إعدادات Firmware ثم يعيد تشغيل الجهاز.")
         self.firmware_btn.setEnabled(
             Path("/sys/firmware/efi").is_dir() and shutil.which("systemctl") is not None
         )
         self.firmware_btn.clicked.connect(self._reboot_to_firmware)
         row.addWidget(self.firmware_btn)
         close = QPushButton("إغلاق")
-        close.clicked.connect(self.reject
+        close.clicked.connect(self.reject)
         row.addWidget(close)
         layout.addLayout(row)
         self._start_scan()
