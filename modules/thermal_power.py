@@ -7,7 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
-from core.module_base import ApplyResult, MaintenanceModule, PreviewStep, RiskLevel, ScanFinding, ScanResult, Severity
+from core.module_base import (\n    ApplyResult,\n    MaintenanceModule,\n    PreviewStep,\n    RiskLevel,\n    ScanFinding,\n    ScanResult,\n    Severity,\n)
 from core.privilege import run_unprivileged
 
 
