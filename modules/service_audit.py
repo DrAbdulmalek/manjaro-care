@@ -114,17 +114,26 @@ def _read_relevant_lines(path: Path, limit: int = 20) -> tuple[list[str], str | 
 
 
 def _collect_update_log_evidence() -> tuple[list[str], list[str]]:
+    """Inspect at most 512 directory entries and the three newest regular files."""
     matches = []
     notes = []
     try:
-        candidates = []
-        for path in _LOG_DIR.iterdir():
+        newest = []
+        for index, path in enumerate(_LOG_DIR.iterdir()):
+            if index >= _MAX_DIRECTORY_ENTRIES:
+                notes.append(f"توقف تعداد السجلات عند حد {_MAX_DIRECTORY_ENTRIES} مدخلاً.")
+                break
             try:
-                if path.is_file():
-                    candidates.append((path.stat().st_mtime, path))
+                if path.is_symlink() or not path.is_file():
+                    continue
+                newest.append((path.stat().st_mtime, path))
             except OSError:
                 continue
-        candidates = [path for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)[:3]]
+        candidates = [
+            path for _, path in heapq.nlargest(
+                _MAX_LOG_FILES, newest, key=lambda item: item[0]
+            )
+        ]
     except FileNotFoundError:
         return [], [f"مجلد السجلات غير موجود: {_LOG_DIR}"]
     except OSError as exc:
@@ -222,19 +231,32 @@ class ServiceAuditModule(MaintenanceModule):
         log_matches, log_notes = _collect_update_log_evidence()
         journal_matches, journal_error = _collect_previous_boot_evidence()
         evidence = log_matches + [f"journal: {line}" for line in journal_matches]
-        dns_lines = [line for line in evidence if _PATTERNS["dns"].search(line)]
+        dns_lines = [line for line in evidence if _PATTERNS["dns_lookup"].search(line)]
+        fetch_lines = [line for line in evidence if _PATTERNS["mirror_fetch"].search(line)]
         network_lines = [line for line in evidence if _PATTERNS["network_stop"].search(line)]
         cache_lines = [line for line in evidence if _PATTERNS["cache_unmount"].search(line)]
-        update_lines = [line for line in evidence if _PATTERNS["unsafe_update"].search(line)]
+        update_lines = [line for line in evidence if _PATTERNS["update_activity"].search(line)]
 
         if dns_lines:
             findings.append(ScanFinding(
-                title="أخطاء DNS/جلب قواعد المرايا في سجلات التحديث",
+                title="أخطاء صريحة في حل أسماء DNS ضمن السجلات",
                 detail=(
-                    "عُثر على أخطاء حل أسماء أو فشل جلب ملفات قواعد الحزم. "
-                    "هذا يثبت فشل الوصول إلى بعض المرايا في تلك اللحظة، لكنه "
-                    "لا يحدد وحده هل السبب DNS أم انقطاع الشبكة أو إعداد المرآة.\n"
-                    + "\n".join(dns_lines[-12:])
+                    "عُثر على رسائل صريحة تفيد بفشل حل أسماء المضيفين. "
+                    "هذه تثبت فشل الحل في وقت السجل، لكنها لا تحدد وحدها "
+                    "هل السبب resolver أم انقطاع الشبكة أو البوابة.\\n"
+                    + "\\n".join(dns_lines[-12:])
+                ),
+                severity=Severity.WARNING,
+                actionable=False,
+            ))
+
+        if fetch_lines:
+            findings.append(ScanFinding(
+                title="فشل جلب ملفات قواعد/حزم من المرايا",
+                detail=(
+                    "عُثر على رسائل فشل تنزيل/جلب. لا تكفي هذه الرسائل وحدها "
+                    "لإثبات وجود عطل DNS؛ افحص الاتصال والبوابة وDNS والمرآة "
+                    "كلّاً على حدة.\\n" + "\\n".join(fetch_lines[-12:])
                 ),
                 severity=Severity.WARNING,
                 actionable=False,
@@ -242,12 +264,13 @@ class ServiceAuditModule(MaintenanceModule):
 
         if network_lines and update_lines:
             findings.append(ScanFinding(
-                title="تداخل زمني محتمل بين التحديث وإيقاف خدمات الشبكة",
+                title="رُصد نشاط تحديث وإيقاف خدمات شبكة في السجلات",
                 detail=(
-                    "توجد آثار لبدء/تنفيذ تحديث، وكذلك إيقاف NetworkManager أو "
-                    "systemd-resolved في سجل الإقلاع السابق. هذا يدعم وجود سباق "
-                    "زمني محتمل أثناء الإغلاق، لكنه لا يثبت وحده أن خدمة التحديث "
-                    "هي السبب المباشر.\n" + "\n".join((update_lines + network_lines)[-12:])
+                    "توجد أدلة منفصلة على نشاط تحديث وعلى إيقاف NetworkManager "
+                    "أو systemd-resolved. لم تُقارن الطوابع الزمنية بين مصادر "
+                    "السجلات؛ لذلك لا يمكن وصف ذلك كتزامن مثبت أو سباق زمني "
+                    "مؤكد، ولا إسناد السبب إلى خدمة التحديث.\\n"
+                    + "\\n".join((update_lines + network_lines)[-12:])
                 ),
                 severity=Severity.WARNING,
                 actionable=False,
@@ -277,7 +300,7 @@ class ServiceAuditModule(MaintenanceModule):
                 actionable=False,
             ))
 
-        if not dns_lines and not network_lines and not cache_lines and not log_matches and not journal_matches:
+        if not (dns_lines or fetch_lines or network_lines or cache_lines or update_lines):
             findings.append(ScanFinding(
                 title="لا توجد أدلة مطابقة في السجلات المقروءة",
                 detail=(
