@@ -118,7 +118,7 @@ def _find_duplicates(
 
     duplicates: dict[str, list[str]] = {}
     seen_inodes: set[tuple[int, int]] = set()
-    for size, candidates in by_size.items():
+    for _size, candidates in by_size.items():
         if len(candidates) < 2:
             continue
         hashes: dict[str, list[str]] = defaultdict(list)
