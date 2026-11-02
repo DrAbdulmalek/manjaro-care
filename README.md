@@ -239,7 +239,11 @@ python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 `.github/workflows/tests.yml` يشغّل pytest وruff على كل PR وعلى main
 (بالإضافة إلى `lint.yml` القديم للفحص النحوي).
 
-## توثيق الحوادث والحلول\n\n- [docs/UPDATE_SHUTDOWN_RETIREMENT.md](docs/UPDATE_SHUTDOWN_RETIREMENT.md) — تحليل حادثة تحديث Pamac أثناء الإغلاق، أخطاء DNS والمرايا، سباق إيقاف الشبكة، وفشل فك /var/cache؛ مع حدود الأدلة وخطوات التشخيص الآمنة.\n\n## أفكار للوحدات القادمة
+## توثيق الحوادث والحلول
+
+- [docs/UPDATE_SHUTDOWN_RETIREMENT.md](docs/UPDATE_SHUTDOWN_RETIREMENT.md) — تحليل حادثة تحديث Pamac أثناء الإغلاق، أخطاء DNS والمرايا، سباق إيقاف الشبكة، وفشل فك /var/cache؛ مع حدود الأدلة وخطوات التشخيص الآمنة.
+
+## أفكار للوحدات القادمة
 
 - `gpu_driver_check` — فحص حالة تعريفات GPU واقتراح التحديث
 - `btrfs_balance` — إدارة توازن btrfs بعد حذف بيانات كثيرة
