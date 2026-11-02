@@ -174,7 +174,7 @@ manjaro-care --dry-run
 | `update_check` | إخبارية: ملفات .pacnew مع أزرار الفروق، تحذير عدم المزامنة والتحديث الجزئي، خدمات فاشلة، أخبار مانجارو | آمن (إخباري) |
 | `failed_services` | كشف خدمات systemd الفاشلة وعرض أوامر فحص السجل — دون إعادة تشغيل جماعية | آمن (قراءة فقط) |
 | `thermal_power` | حرارة CPU، أعلى العمليات استهلاكاً، governor/EPP/Turbo، TLP وملف منصة العتاد وتعارض مديري الطاقة | آمن (قراءة فقط) |
-| `service_audit` | تدقيق update_shutdown.service المتقاعدة وبقاياها دون حذف أو تعطيل | آمن (قراءة فقط) |
+| `service_audit` | تدقيق Update on Shutdown: وحدات systemd وبقايا السكربت، أخطاء DNS/Pamac، إيقاف الشبكة وفشل فك /var/cache مع فصل الدليل عن السبب المحتمل | آمن (قراءة فقط) |
 | `user_manager` | إدارة المستخدمين والمجموعات | متوسط |
 | `printer_manager` | حالة الطابعات (CUPS) | آمن |
 
@@ -238,6 +238,10 @@ python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 
 `.github/workflows/tests.yml` يشغّل pytest وruff على كل PR وعلى main
 (بالإضافة إلى `lint.yml` القديم للفحص النحوي).
+
+## توثيق الحوادث والحلول
+
+- [docs/UPDATE_SHUTDOWN_RETIREMENT.md](docs/UPDATE_SHUTDOWN_RETIREMENT.md) — تحليل حادثة تحديث Pamac أثناء الإغلاق، أخطاء DNS والمرايا، سباق إيقاف الشبكة، وفشل فك /var/cache؛ مع حدود الأدلة وخطوات التشخيص الآمنة.
 
 ## أفكار للوحدات القادمة
 
