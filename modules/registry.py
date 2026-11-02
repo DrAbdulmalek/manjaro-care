@@ -126,6 +126,8 @@ def get_all_modules():
 
         # الخدمات والمستخدمين
         FailedServicesModule(),
+        ThermalPowerModule(),
+        ServiceAuditModule(),
         UserManagerModule(),
         PrinterManagerModule(),
     ]
