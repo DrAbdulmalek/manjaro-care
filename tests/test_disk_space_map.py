@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from modules.disk_space_map import build_space_map
+from modules.disk_space_map import SpaceEntry, build_space_map
 
 
 def test_aggregates_regular_files_and_directories(tmp_path: Path):
@@ -61,8 +61,8 @@ def test_treemap_tiles_partition_the_requested_area():
     from gui.disk_space_map_dialog import _treemap_rectangles
 
     entries = [
-        type("Entry", (), {"name": "large", "path": "/large", "size_bytes": 900, "kind": "file"})(),
-        type("Entry", (), {"name": "small", "path": "/small", "size_bytes": 100, "kind": "file"})(),
+        SpaceEntry("large", "/large", 900, "file"),
+        SpaceEntry("small", "/small", 100, "file"),
     ]
     bounds = QRectF(0, 0, 100, 50)
     tiles = _treemap_rectangles(entries, bounds)
