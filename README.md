@@ -173,8 +173,10 @@ manjaro-care --dry-run
 | `boot_sanity` | فحص سلامة الإقلاع على btrfs (تكامل manjaro-doctor + fallback أصلي، إصلاح بنسخة احتياطية) | متوسط |
 | `update_check` | إخبارية: ملفات .pacnew مع أزرار الفروق، تحذير عدم المزامنة والتحديث الجزئي، خدمات فاشلة، أخبار مانجارو | آمن (إخباري) |
 | `system_integrity` | تدقيق مصدر الجذر وfstab وصياغة GRUB ومسارات mkinitcpio وتفاصيل Btrfs — قراءة فقط | آمن |
+| `thermal_power` | مراقبة حرارة CPU والمراوح وأحمال العمليات وسياسة الطاقة وTLP — قراءة فقط | آمن |
+| `service_audit` | كشف بقايا update_shutdown.service والسكربت المحفوظ — قراءة فقط | آمن |
 | `package_compatibility` | اتساق pacman والحزم الأجنبية ومؤشرات checkrebuild بعد تغيّر المكتبات — قراءة فقط | آمن |
-| `failed_services` | يكتشف خدمات systemd الفاشلة ويعيد تشغيلها | آمن |
+| `failed_services` | يكتشف خدمات systemd الفاشلة ويعرض سجلاتها؛ لا يعيد تشغيلها تلقائياً | آمن |
 | `user_manager` | إدارة المستخدمين والمجموعات | متوسط |
 | `printer_manager` | حالة الطابعات (CUPS) | آمن |
 
