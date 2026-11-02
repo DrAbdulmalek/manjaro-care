@@ -29,6 +29,17 @@ def parse_temperatures(text: str) -> list[tuple[str, float]]:
     return rows
 
 
+def parse_fan_speeds(text: str) -> list[tuple[str, int]]:
+    """استخراج سرعات المراوح من sensors؛ لا يعتبر PWM=N/A سرعة صفراً."""
+    rows = []
+    pattern = re.compile(r"^\s*(fan\d+)\s*:\s*(\d+)\s*RPM", re.IGNORECASE)
+    for line in text.splitlines():
+        match = pattern.search(line)
+        if match:
+            rows.append((match.group(1), int(match.group(2))))
+    return rows
+
+
 def parse_process_cpu(text: str, limit: int = 5) -> list[tuple[float, str]]:
     """تحليل ps -eo pcpu=,comm= مع رفض الأسطر غير القابلة للتحليل."""
     rows = []
@@ -100,6 +111,20 @@ class ThermalPowerModule(MaintenanceModule):
                 detail=detail, severity=Severity.INFO, actionable=False,
             ))
 
+        fans = parse_fan_speeds(sensors.stdout) if sensors.ok else []
+        if fans:
+            findings.append(ScanFinding(
+                title="سرعات المراوح المقروءة",
+                detail="\n".join(f"{name}: {rpm} RPM" for name, rpm in fans),
+                severity=Severity.INFO, actionable=False,
+            ))
+        else:
+            findings.append(ScanFinding(
+                title="سرعة المروحة غير متاحة عبر sensors",
+                detail="قد لا يعرّض BIOS/EC سرعة المروحة للنظام؛ لا يعني ذلك وجود عطل بالمروحة.",
+                severity=Severity.INFO, actionable=False,
+            ))
+
         ps = run_unprivileged(["ps", "-eo", "pcpu=,comm=", "--sort=-pcpu"])
         processes = parse_process_cpu(ps.stdout) if ps.ok else []
         if processes:
@@ -113,6 +138,8 @@ class ThermalPowerModule(MaintenanceModule):
         epp = _read("/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference")
         driver = _read("/sys/devices/system/cpu/cpu0/cpufreq/scaling_driver")
         turbo = _read("/sys/devices/system/cpu/intel_pstate/no_turbo")
+        current_khz = _read("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
+        maximum_khz = _read("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq")
         cpu_lines = []
         if driver:
             cpu_lines.append(f"Driver: {driver}")
@@ -122,6 +149,11 @@ class ThermalPowerModule(MaintenanceModule):
             cpu_lines.append(f"EPP: {epp}")
         if turbo in {"0", "1"}:
             cpu_lines.append(f"Intel Turbo: {'مسموح' if turbo == '0' else 'معطّل'}")
+        for label, value in (("التردد الحالي", current_khz), ("الحد الأعلى", maximum_khz)):
+            try:
+                cpu_lines.append(f"{label}: {int(value) / 1000:.0f} MHz")
+            except ValueError:
+                pass
         if cpu_lines:
             findings.append(ScanFinding(
                 title="سياسة المعالج الحالية",
