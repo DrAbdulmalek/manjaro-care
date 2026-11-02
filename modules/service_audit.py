@@ -21,6 +21,8 @@ from core.privilege import run_unprivileged
 _UNIT_NAMES = ("update_shutdown.service", "update_startup.service")
 _UNIT_PATHS = (
     Path("/etc/systemd/system"),
+    Path("/run/systemd/system"),
+    Path("/usr/local/lib/systemd/system"),
     Path("/usr/lib/systemd/system"),
     Path("/lib/systemd/system"),
 )
@@ -29,6 +31,10 @@ _SCRIPT_PATHS = (
     Path("/usr/local/bin/update_startup"),
 )
 _LOG_DIR = Path("/var/log/manjaro-automatic-update")
+_MAX_LOG_FILES = 3
+_MAX_DIRECTORY_ENTRIES = 512
+_MAX_LOG_BYTES = 256 * 1024
+_MAX_LOG_LINES = 120
 
 _PATTERNS = {
     "dns_lookup": re.compile(
