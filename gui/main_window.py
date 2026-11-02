@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
 from core.logger import get_logger, log_file_path
 from core.scanner import SystemHealthReport, run_full_scan
 from gui.module_card import ModuleCard
+from gui.system_health_center import SystemHealthCenter
 from gui.workers import FunctionWorker
 from modules.registry import get_all_modules
 
@@ -94,6 +95,9 @@ class MainWindow(QMainWindow):
         self.summary_label.setWordWrap(True)
         health_layout.addWidget(self.summary_label)
 
+        self.health_center = SystemHealthCenter()
+        health_layout.addWidget(self.health_center)
+
         scan_all_row = QHBoxLayout()
         self.scan_all_btn = QPushButton("فحص شامل للنظام")
         self.scan_all_btn.setStyleSheet(
@@ -142,6 +146,7 @@ class MainWindow(QMainWindow):
 
     def _on_scan_all_finished(self, report: SystemHealthReport) -> None:
         self._render_summary(report)
+        self.health_center.render_report(report)
 
         # حدّث كل بطاقة بنتيجتها الخاصة دون طلب فحص جديد منها (نتفادى
         # تشغيل نفس الفحص مرتين)
@@ -168,7 +173,7 @@ class MainWindow(QMainWindow):
             text = f"يوجد {report.warning_count} تنبيهاً يستحق المراجعة."
             color = "#ffa726"
         else:
-            text = "النظام في حالة جيدة — لا مشاكل حرجة أو تنبيهات."
+            text = "لم تُرصد مشكلات حرجة أو تحذيرات في الوحدات التي اكتمل فحصها."
             color = "#66bb6a"
 
         self.summary_label.setText(text)
