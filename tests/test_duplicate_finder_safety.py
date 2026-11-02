@@ -30,7 +30,7 @@ def test_scanner_does_not_follow_symlink_files_or_directories(tmp_path):
     root.mkdir()
     outside.mkdir()
     secret = outside / "secret.bin"
-    secret.write_bytes(b"x" * 4096)
+    secret.write_bytes(b"x" * (1024 * 1024 + 1))
     (root / "linked-file.bin").symlink_to(secret)
     (root / "linked-dir").symlink_to(outside, target_is_directory=True)
 
@@ -42,7 +42,7 @@ def test_scanner_does_not_follow_symlink_files_or_directories(tmp_path):
 
 def test_hardlinks_are_not_reported_as_reclaimable_duplicates(tmp_path):
     original = tmp_path / "original.bin"
-    original.write_bytes(b"hardlink-data-" * 1000)
+    original.write_bytes(b"hardlink-data-" * 100_000)
     linked = tmp_path / "same-inode.bin"
     linked.hardlink_to(original)
 
@@ -52,7 +52,7 @@ def test_hardlinks_are_not_reported_as_reclaimable_duplicates(tmp_path):
 
 def test_walk_is_bounded_by_file_count(tmp_path):
     for index in range(8):
-        (tmp_path / f"{index}.bin").write_bytes(b"a" * 2048)
+        (tmp_path / f"{index}.bin").write_bytes(b"a" * (1024 * 1024 + 1))
 
     entries = _walk_files([str(tmp_path)], max_files=3)
     assert len(entries) == 3
