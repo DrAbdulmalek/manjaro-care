@@ -90,15 +90,15 @@ def test_update_and_network_evidence_does_not_claim_proven_timing():
         if args[0] == "systemctl":
             return CommandResult(
                 0,
-                "LoadState=not-found\\nActiveState=inactive\\n"
-                "UnitFileState=\\nFragmentPath=\\n",
+                "LoadState=not-found\nActiveState=inactive\n"
+                "UnitFileState=\nFragmentPath=\n",
                 "",
             )
         if args[0] == "journalctl":
             return CommandResult(
                 0,
-                "2026-11-01T02:52:00+03:00 Starting Pamac update\\n"
-                "2026-11-01T02:53:10+03:00 Stopping NetworkManager\\n",
+                "2026-11-01T02:52:00+03:00 Starting Pamac update\n"
+                "2026-11-01T02:53:10+03:00 Stopping NetworkManager\n",
                 "",
             )
         return CommandResult(0, "", "")
