@@ -81,6 +81,7 @@ class DiskSpaceMapDialog(BusyCloseGuardMixin, QDialog):
         self.table.setHorizontalHeaderLabels(["العنصر", "الحجم", "النوع"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSortingEnabled(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         layout.addWidget(self.table, 1)
         row = QHBoxLayout()
