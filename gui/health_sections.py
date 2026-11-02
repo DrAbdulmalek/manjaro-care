@@ -5,13 +5,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from core.module_base import ScanFinding, ScanResult, Severity
+from core.module_base import ScanFinding, Severity
 from core.scanner import SystemHealthReport
 
 _CATEGORIES = [
     ("boot_storage", "الإقلاع والتخزين", ("الإقلاع", "btrfs", "القرص", "snapshot", "snapper")),
     ("packages", "الحزم والمكتبات", ("الحزم", "pacman", "البرامج", "المستودعات")),
-    ("thermal_power", "الحرارة والطاقة", ("الحرارة", "الطاقة", "العتاد", "الأداء")),
+    ("thermal_power", "الحرارة والطاقة", ("الحرارة", "الطاقة", "العتاد")),
     ("services", "الخدمات", ("الخدمات", "service", "update_shutdown")),
     ("security", "الأمان والشبكة", ("الجدار", "الشبكة", "الخصوصية", "الحماية")),
     ("performance", "الأداء والموارد", ("الذاكرة", "المعالج", "العمليات", "الأداء")),
