@@ -83,7 +83,7 @@ def collect_firmware_report() -> dict[str, object]:
         "- قد لا تتوفر بعض الحقول إذا كانت الأدوات غير مثبتة أو كانت صلاحيات القراءة محدودة.",
         "- لا يتضمن التقرير الرقم التسلسلي أو مفاتيح Secure Boot أو محتويات متغيرات EFI.",
     ])
-    return {"is_uefi": is_uefi, "report": "\\n".join(lines)}
+    return {"is_uefi": is_uefi, "report": "\n".join(lines)}
 
 
 class FirmwareOverviewModule(MaintenanceModule):
