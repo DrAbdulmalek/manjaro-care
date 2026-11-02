@@ -1,4 +1,5 @@
 from unittest.mock import patch
+
 from core.privilege import CommandResult
 from modules.service_audit import ServiceAuditModule
 
