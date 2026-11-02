@@ -42,6 +42,7 @@ from modules.printer_manager import PrinterManagerModule
 from modules.ram_booster import RamBoosterModule
 from modules.repo_manager import RepoManagerModule
 from modules.report_export import ReportExportModule
+from modules.service_audit import ServiceAuditModule
 from modules.snapper_cleanup import SnapperCleanupModule
 from modules.snapshot_before_update import SnapshotBeforeUpdateModule
 from modules.software_updater import SoftwareUpdaterModule
@@ -52,6 +53,7 @@ from modules.startup_manager import StartupManagerModule
 from modules.system_cleaner import SystemCleanerModule
 from modules.system_info import SystemInfoModule
 from modules.tcp_optimizer import TcpOptimizerModule
+from modules.thermal_power import ThermalPowerModule
 from modules.time_manager import TimeManagerModule
 from modules.update_check import UpdateCheckModule
 from modules.user_manager import UserManagerModule
@@ -124,6 +126,8 @@ def get_all_modules():
 
         # الخدمات والمستخدمين
         FailedServicesModule(),
+        ThermalPowerModule(),
+        ServiceAuditModule(),
         UserManagerModule(),
         PrinterManagerModule(),
     ]
