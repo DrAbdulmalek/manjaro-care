@@ -3,6 +3,7 @@
 """تدقيق سلامة التحديثات والإغلاق وبقايا Update on Shutdown — قراءة فقط."""
 from __future__ import annotations
 
+import heapq
 import re
 from pathlib import Path
 
@@ -30,9 +31,14 @@ _SCRIPT_PATHS = (
 _LOG_DIR = Path("/var/log/manjaro-automatic-update")
 
 _PATTERNS = {
-    "dns": re.compile(
+    "dns_lookup": re.compile(
         r"Could not resolve host|Temporary failure in name resolution|"
-        r"Name or service not known|failed to retrieve some files",
+        r"Name or service not known|No address associated with hostname",
+        re.IGNORECASE,
+    ),
+    "mirror_fetch": re.compile(
+        r"failed to retrieve some files|failed retrieving file|"
+        r"failed to download|could not download",
         re.IGNORECASE,
     ),
     "network_stop": re.compile(
@@ -46,7 +52,7 @@ _PATTERNS = {
         r"(failed|status=32|exit(ed)?)",
         re.IGNORECASE,
     ),
-    "unsafe_update": re.compile(
+    "update_activity": re.compile(
         r"pamac update|pamac remove -o|flatpak update|"
         r"Update startet|Starting Pamac update",
         re.IGNORECASE,
@@ -61,7 +67,7 @@ def _unit_state(unit: str) -> dict[str, str] | None:
         "--property=UnitFileState", "--property=FragmentPath",
         "--property=ExecStart", "--property=ExecStop",
         "--property=TimeoutStopUSec",
-    ])
+    ], timeout=8)
     if not result.ok:
         return None
     state = {}
@@ -101,9 +107,9 @@ def _read_relevant_lines(path: Path, limit: int = 20) -> tuple[list[str], str | 
         with path.open("rb") as stream:
             stream.seek(0, 2)
             size = stream.tell()
-            stream.seek(max(0, size - 256 * 1024))
-            chunk = stream.read().decode("utf-8", errors="replace")
-            lines = chunk.splitlines()[-120:]
+            stream.seek(max(0, size - _MAX_LOG_BYTES))
+            chunk = stream.read(_MAX_LOG_BYTES).decode("utf-8", errors="replace")
+            lines = chunk.splitlines()[-_MAX_LOG_LINES:]
     except OSError as exc:
         return [], str(exc)
     matches = []
