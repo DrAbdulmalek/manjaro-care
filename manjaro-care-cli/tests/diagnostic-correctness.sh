@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# اختبارات صحة التشخيص — BUG-CLI-01..06 + حارس الحكم الإجمالي
+# اختبارات صحة التشخيص — BUG-CLI-01..06 + حارس الحكم الإجمالي + دورات المراجعة R1–R7
 #
 # المبدأ (قرار 2026-11-04): لا يجوز أن يعلن أي قسم «سليم» بينما فيه
 # مشكلات أمنية أو تشغيلية محسوبة. كل سيناريو هنا يحقن حالة معروفة
@@ -211,13 +211,13 @@ assert_eq "$(sec_classify_local '[fe80::99df:9ddf:cdf1:a22e%wlo1]:546')" "lan" "
 assert_eq "$(sec_nft_effective 'table inet f { chain input { type filter hook input priority 0; policy drop; } }'; echo $?)" "0" "nft: policy drop → فعّال"
 assert_eq "$(sec_nft_effective 'table inet t { chain c { type filter hook input priority 0; policy accept; } }'; echo $?)" "1" "nft: policy accept فقط → غير فعّال"
 assert_eq "$(sec_nft_effective 'table ip nat { chain p { type nat hook postrouting priority 100; masquerade } }'; echo $?)" "1" "nft: NAT فقط → غير فعّال"
-assert_eq "$(sec_nft_effective 'counter ip saddr 1.2.3.4 drop'; echo $?)" "0" "nft: حكم drop صريح → فعّال"
+assert_eq "$(sec_nft_effective 'counter ip saddr 1.2.3.4 drop'; echo $?)" "1" "R5: قاعدة drop معزولة بلا سلسلة hook input → غير فعّال (كان يُعلن حماية زائفة)"
 assert_eq "$(sec_nft_effective 'chain x { counter } # drop here'; echo $?)" "1" "nft: كلمة drop بعد # لا تُعدّ دليلاً"
 
 # B3) مراجعة مستقلة — تمييز بروتوكولات الاكتشاف (دالة نقية)
 assert_eq "$(sec_is_discovery udp '0.0.0.0:5353' 'avahi-daemon'; echo $?)" "0" "disc: avahi mDNS → اكتشاف"
-assert_eq "$(sec_is_discovery udp '0.0.0.0:5355' ''; echo $?)" "0" "disc: LLMNR 5355 → اكتشاف"
-assert_eq "$(sec_is_discovery udp '0.0.0.0:1900' ''; echo $?)" "0" "disc: SSDP 1900 → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5355' ''; echo $?)" "1" "R6: LLMNR 5355 بلا مالك معروف → لا إعفاء (كان يُعفى بالمنفذ وحده)"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:1900' ''; echo $?)" "1" "R6: SSDP 1900 بلا مالك معروف → لا إعفاء (كان يُعفى بالمنفذ وحده)"
 assert_eq "$(sec_is_discovery udp '0.0.0.0:9999' 'myapp'; echo $?)" "1" "disc: منفذ مجهول → ليس اكتشافاً"
 assert_eq "$(sec_is_discovery tcp '0.0.0.0:9999' ''; echo $?)" "1" "disc: tcp لا يدخل الاكتشاف بالمنفذ"
 
@@ -362,12 +362,12 @@ export NFT_FILE="$TMP_DIR/nft-accept.txt"
 printf 'table inet filter {\n\tchain input { type filter hook input priority 0; policy accept; }\n}\n' > "$TMP_DIR/nft-accept.txt"
 export SS_FILE="$TMP_DIR/ss-clean.txt" DOCKER_PS=""
 case_run security-check.sh security_check
-assert_contains "$RUN_OUT" "بلا سياسة إسقاط فعّالة" "nft accept-only → يُرصد كغير فعّال"
+assert_contains "$RUN_OUT" "بلا حماية مؤكدة على مسار الإدخال" "nft accept-only → يُرصد كغير فعّال (R5)"
 assert_rc_nonzero "$RUN_RC" "nft accept-only → RC≠0 (ليس جداراً)"
 printf 'table inet filter {\n\tchain input { type filter hook input priority 0; policy drop; }\n}\n' > "$TMP_DIR/nft-accept.txt"
 export UFW_STATE="inactive" CARE_RESOLVED_CONF="$TMP_DIR/resolved.conf" CARE_RESOLVED_CONF_D="$TMP_DIR/resolved.d"
 case_run security-check.sh security_check
-assert_contains "$RUN_OUT" "nftables بسياسة إسقاط فعّالة" "nft policy drop → جدار فعّال"
+assert_contains "$RUN_OUT" "nftables بحماية فعّالة على مسار الإدخال" "nft policy drop → جدار فعّال (R5)"
 assert_rc_zero "$RUN_RC" "nft policy drop → سيناريو نظيف يبقى سليماً"
 unset NFT_FILE SS_FILE DOCKER_PS UFW_STATE CARE_RESOLVED_CONF CARE_RESOLVED_CONF_D
 
@@ -377,6 +377,131 @@ case_run security-check.sh security_check
 assert_contains "$RUN_OUT" "حاوية مكشوفة: mybox" "docker :::8080 → يُحسب مكشوفاً"
 assert_rc_nonzero "$RUN_RC" "docker :::8080 → RC≠0"
 unset SS_FILE DOCKER_PS
+
+# S) R5 — قواعد drop معزولة (سلاسل output/docker) لا تُعلن حماية (السيناريو المضاد للإعلان الزائف)
+printf 'table inet filter {\n\tchain input { type filter hook input priority 0; policy accept; }\n\tchain output { type filter hook output priority 0; policy drop; }\n}\ntable ip nat {\n\tchain docker-fw { counter ip daddr 172.17.0.0/16 drop }\n}\n' > "$TMP_DIR/nft-r5-isolated.txt"
+export NFT_FILE="$TMP_DIR/nft-r5-isolated.txt"
+export SS_FILE="$TMP_DIR/ss-clean.txt" DOCKER_PS=""
+export UFW_STATE="inactive" CARE_RESOLVED_CONF="$TMP_DIR/resolved.conf" CARE_RESOLVED_CONF_D="$TMP_DIR/resolved.d"
+case_run security-check.sh security_check
+assert_contains "$RUN_OUT" "بلا حماية مؤكدة على مسار الإدخال" "R5: drop معزول في output/docker → لا يُعلن جداراً"
+assert_not_contains "$RUN_OUT" "nftables بحماية فعّالة" "R5: لا إعلان حماية من قواعد معزولة"
+assert_rc_nonzero "$RUN_RC" "R5: drop معزول → RC≠0"
+unset NFT_FILE SS_FILE DOCKER_PS UFW_STATE CARE_RESOLVED_CONF CARE_RESOLVED_CONF_D
+
+# T) R5 — وحدات مسار الإدخال: الدليل المقبول حصراً (hook input أو قفزة غير مشروطة منه)
+cat > "$TMP_DIR/nft-fwld.txt" <<'EOF'
+table inet firewalld {
+        chain filter_INPUT {
+                type filter hook input priority filter; policy accept;
+                ct status dnat accept
+                jump filter_INPUT_ZONES
+                reject with icmpx type admin-prohibited
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-fwld.txt")"; echo $?)" "0" "R5: نمط firewalld — حكم رفض ختامي في سلسلة input الأساس → فعّال"
+
+cat > "$TMP_DIR/nft-fwd.txt" <<'EOF'
+table inet fwd {
+        chain forward { type filter hook forward priority 0; policy drop; }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-fwd.txt")"; echo $?)" "1" "R5: policy drop على forward حصراً → غير فعّال (لا يخص الإدخال)"
+
+cat > "$TMP_DIR/nft-jump-ok.txt" <<'EOF'
+table inet m {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                jump inp_rules
+        }
+        chain inp_rules {
+                tcp dport 22 accept
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-jump-ok.txt")"; echo $?)" "0" "R5: قفزة غير مشروطة إلى سلسلة تنتهي بـ drop → فعّال (مسار تطبيق القواعد)"
+
+cat > "$TMP_DIR/nft-jump-cond.txt" <<'EOF'
+table inet m2 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                ip saddr 203.0.113.0/24 jump blocklist
+        }
+        chain blocklist {
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-jump-cond.txt")"; echo $?)" "1" "R5: drop خلف قفزة مشروطة → ليس حماية افتراضية (لا إعلان زائف)"
+
+cat > "$TMP_DIR/nft-out-only.txt" <<'EOF'
+table inet u {
+        chain output {
+                type filter hook output priority 0; policy accept;
+                jump out_rules
+        }
+        chain out_rules {
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-out-only.txt")"; echo $?)" "1" "R5: مسار الإخراج وحده بلا سلسلة input → غير فعّال"
+
+cat > "$TMP_DIR/nft-cycle.txt" <<'EOF'
+table inet c {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                jump a
+        }
+        chain a { jump b }
+        chain b { jump a }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-cycle.txt")"; echo $?)" "1" "R5: حلقة قفزات لا تُعلّق ولا تُعلن حماية"
+
+# U) R6 — وحدات: الإعفاء ثلاثي (udp + منفذ + مالك معروف)؛ غير المؤكد يبقى تحذيراً قابلاً للمراجعة
+assert_eq "$(sec_is_discovery tcp '0.0.0.0:5353' 'avahi-daemon'; echo $?)" "1" "R6: TCP مع مالك كان يُعفى → لا إعفاء (البروتوكول أولاً)"
+assert_eq "$(sec_is_discovery tcp '127.0.0.1:5355' 'systemd-resolve'; echo $?)" "1" "R6: TCP systemd-resolve → لا إعفاء"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5355' 'systemd-resolve'; echo $?)" "0" "R6: LLMNR 5355 بالمالك الصحيح → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5353' 'myapp'; echo $?)" "1" "R6: مالك مجهول على منفذ mDNS → لا يُخفى"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5353' ''; echo $?)" "1" "R6: بلا معلومة مالك على 5353 → مراجعة لا إعفاء"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:1900' 'minissdpd'; echo $?)" "0" "R6: SSDP بالمالك النظامي → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:3702' 'wsdd'; echo $?)" "0" "R6: WS-Discovery بالمالك النظامي → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:3702' 'myapp'; echo $?)" "1" "R6: 3702 بمالك مجهول → لا يُخفى"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:68' 'NetworkManager'; echo $?)" "0" "R6: DHCP client بالمالك النظامي → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:67' 'dnsmasq'; echo $?)" "0" "R6: DHCP server بالمالك النظامي → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:67' 'rogue-dhcpd'; echo $?)" "1" "R6: DHCP بمالك غريب → لا يُخفى"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5354' 'avahi-daemon'; echo $?)" "1" "R6: المالك الصحيح على منفذ خاطئ → لا إعفاء"
+
+# V) R7 — ULA fc00::/7 (fd00::/8): محلية لا خارجية؛ والعناوين العالمية تبقى خارجية (regression)
+assert_eq "$(sec_classify_local '[fd00::1]:8080')" "lan" "R7: ULA fd00::/8 → محلية"
+assert_eq "$(sec_classify_local '[fc00::1]:53')" "lan" "R7: ULA fc00::/7 → محلية"
+assert_eq "$(sec_classify_local '[fd00::1%eth0]:8080')" "lan" "R7: ULA مع %zone → محلية"
+assert_eq "$(sec_classify_local '[2001:db8::1]:443')" "other" "R7: عالمية 2001:db8 → ليست محلية (regression)"
+assert_eq "$(sec_classify_local '[2606:4700:4700::1111]:443')" "other" "R7: عالمية 2606 → ليست محلية (regression)"
+
+# V2) R6+R7 — نهاية-إلى-نهاية: الخدمة المجهولة على منفذ اكتشاف تظهر [خارجي]، وULA لا تُعلن خارجية
+cat > "$TMP_DIR/ss-r7.txt" <<'EOF'
+Netid State  Recv-Q Send-Q Local Address:Port       Peer Address:Port        Process
+udp   UNCONN 0      0                                0.0.0.0:5353       0.0.0.0:*           users:(("myapp",pid=801,fd=10))
+udp   UNCONN 0      0                                0.0.0.0:1900       0.0.0.0:*           users:(("mysteryd",pid=802,fd=11))
+tcp   LISTEN 0      128                              [fd00::1]:8080     [::]:*              users:(("myapp",pid=803,fd=12))
+tcp   LISTEN 0      128                              [2001:db8::1]:443  [::]:*              users:(("myapp",pid=804,fd=13))
+EOF
+printf 'table inet filter {\n\tchain input { type filter hook input priority 0; policy drop; }\n}\n' > "$TMP_DIR/nft-r7.txt"
+export NFT_FILE="$TMP_DIR/nft-r7.txt" SS_FILE="$TMP_DIR/ss-r7.txt" DOCKER_PS=""
+export UFW_STATE="inactive" CARE_RESOLVED_CONF="$TMP_DIR/resolved.conf" CARE_RESOLVED_CONF_D="$TMP_DIR/resolved.d"
+case_run security-check.sh security_check
+assert_contains "$RUN_OUT" "[خارجي] udp 0.0.0.0:5353" "R6: خدمة مجهولة على 5353 تظهر [خارجي] (لا تُخفى)"
+assert_contains "$RUN_OUT" "[خارجي] udp 0.0.0.0:1900" "R6: خدمة مجهولة على 1900 تظهر [خارجي] (لا تُخفى)"
+assert_not_contains "$RUN_OUT" "[اكتشاف شبكي]" "R6: لا وسم اكتشاف لأي خدمة مجهولة في المشهد"
+assert_contains "$RUN_OUT" "[شبكة محلية] tcp [fd00::1]:8080" "R7: مستمع ULA → شبكة محلية لا خارجية"
+assert_contains "$RUN_OUT" "[خارجي؟] tcp [2001:db8::1]:443" "R7: مستمع IPv6 عالمي يبقى خارجياً (regression)"
+assert_contains "$RUN_OUT" "3 منفذاً منشورة" "R6/R7: العد الخارجي 3 بالضبط (5353+1900+2001:db8)"
+assert_rc_nonzero "$RUN_RC" "R6/R7: مشهد ملوث → RC≠0"
+unset NFT_FILE SS_FILE DOCKER_PS UFW_STATE CARE_RESOLVED_CONF CARE_RESOLVED_CONF_D
 
 echo "─────────────────────────────"
 echo "GUARD: $PASS نجح، $FAIL فشل"

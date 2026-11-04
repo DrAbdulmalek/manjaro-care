@@ -13,39 +13,119 @@ sec_classify_local() {
         *%virbr*|*%veth*|*%br-*|*%docker*|*%tap*)               printf 'virtual\n' ;;
         0.0.0.0|\*|\[::\])                                      printf 'wildcard\n' ;;
         192.168.*|10.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|\[fe80*|fe80*) printf 'lan\n' ;;
+        # (R7) ULA ضمن fc00::/7 (يشمل fd00::/8) — عناوين محلية وليست إنترنت عامة
+        \[fc*|\[fd*|fc*|fd*)                                    printf 'lan\n' ;;
         *)                                                      printf 'other\n' ;;
     esac
 }
 
-# (مراجعة مستقلة 2026-11-04) فعالية ruleset لـ nftables — دالة نقية:
-# الإدخال: نص nft list ruleset. المخرج: 0 إذا فيه حماية فعلية.
-# حماية فعلية = سياسة إسقاط في سلسلة أساس (policy drop/reject)
-# أو حكم drop/reject صريح. نصوص comment تُجرّد أولاً كي لا تُعدّ دليلاً.
+# (مراجعة مستقلة 2026-11-05 — R5) فعالية ruleset لـ nftables — دالة نقية:
+# الإدخال: نص nft list ruleset. المخرج: 0 فقط عند حماية مؤكدة على مسار الإدخال.
+# الدليل المقبول حصراً:
+#   (أ) سلسلة أساس hook input سياستها policy drop/reject، أو
+#   (ب) آخر قاعدة حقيقية (غير سطر type/policy) في سلسلة على مسار الإدخال
+#       تبدأ بـ drop/reject (حكم ختامي غير مشروط — نمط firewalld).
+# "مسار الإدخال" = سلاسل hook input الأساس + ما يُوصل إليها بقفزة غير
+# مشروطة (قاعدة تبدأ بـ jump/goto). قاعدة drop معزولة — في سلاسل
+# output/forward/docker أو خلف قفزة مشروطة — لا تُعدّ دليلاً؛ اعتبارها
+# كان يُعلن حماية زائفة ويُخفي تعرضاً حقيقياً.
 sec_nft_effective() {
     local rs="${1:-}"
-    rs=$(printf '%s\n' "$rs" | sed 's/comment "[^"]*"//g; s/#.*//')
-    if printf '%s\n' "$rs" | grep -Eq 'policy[[:space:]]+(drop|reject)'; then
-        return 0
-    fi
-    if printf '%s\n' "$rs" | grep -Eq '(^|[[:space:];{])(drop|reject)([[:space:];}]|$)'; then
-        return 0
-    fi
+    # تجريد نصوص comment أولاً كي لا تُعدّ دليلاً، ثم فصل الأقواس أسطراً
+    # كي تُقرأ السلاسل المكتوبة في سطر واحد كذلك
+    rs=$(printf '%s\n' "$rs" | sed 's/comment "[^"]*"//g; s/#.*//' | sed 's/[{}]/&\n/g')
+    local -A CH_BODY=() CH_HOOK=() CH_POLICY=()
+    local cur_tbl="" cur="" in_chain=0 line
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]*table[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]+)[[:space:]]*\{ ]]; then
+            cur_tbl="${BASH_REMATCH[1]}"
+            cur=""
+            in_chain=0
+            continue
+        fi
+        if [[ "$line" =~ ^[[:space:]]*chain[[:space:]]+([^[:space:]]+)[[:space:]]*\{ ]]; then
+            cur="${cur_tbl}|${BASH_REMATCH[1]}"
+            in_chain=1
+            CH_BODY[$cur]=""
+            continue
+        fi
+        if (( in_chain )); then
+            if [[ "$line" =~ ^[[:space:]]*\}[[:space:]]*$ ]]; then
+                cur=""
+                in_chain=0
+                continue
+            fi
+            CH_BODY[$cur]+="$line"$'\n'
+        fi
+    done <<< "$rs"
+    # تعليم سلاسل الإدخال الأساسية وسياساتها
+    local key body
+    for key in "${!CH_BODY[@]}"; do
+        body="${CH_BODY[$key]}"
+        if [[ "$body" == *"hook input"* ]]; then
+            CH_HOOK[$key]=1
+        fi
+        if [[ "$body" =~ policy[[:space:]]+(drop|reject) ]]; then
+            CH_POLICY[$key]="${BASH_REMATCH[1]}"
+        fi
+    done
+    # BFS من سلاسل hook input عبر القفزات غير المشروطة فقط (seen يمنع الحلقات)
+    local -a queue=()
+    local -A seen=()
+    for key in "${!CH_HOOK[@]}"; do
+        queue+=("$key")
+    done
+    local i=0 last rr tgt
+    while (( i < ${#queue[@]} )); do
+        key="${queue[$i]}"
+        i=$((i + 1))
+        [[ -z "${seen[$key]+x}" ]] || continue
+        seen[$key]=1
+        body="${CH_BODY[$key]:-}"
+        # (أ) سياسة إسقاط على سلسلة إدخال أساس فقط
+        if [[ -n "${CH_HOOK[$key]+x}" && "${CH_POLICY[$key]:-}" =~ ^(drop|reject)$ ]]; then
+            return 0
+        fi
+        # (ب) آخر قاعدة حقيقية في السلسلة حكم إفلات/رفض غير مشروط
+        last=""
+        while IFS= read -r rr; do
+            [[ "$rr" =~ ^[[:space:]]*type[[:space:]] ]] && continue   # سطر type/hook/policy ليس قاعدة
+            [[ -n "${rr//[[:space:]]/}" ]] || continue
+            last="$rr"
+        done <<< "$body"
+        if [[ "$last" =~ ^[[:space:]]*(drop|reject)([[:space:];}]|$) ]]; then
+            return 0
+        fi
+        # (ج) توسيع المسار: قفزات غير مشروطة فقط داخل الجدول نفسه
+        while IFS= read -r rr; do
+            [[ "$rr" =~ ^[[:space:]]*(jump|goto)[[:space:]]+([^[:space:];]+) ]] || continue
+            tgt="${key%%|*}|${BASH_REMATCH[2]}"
+            if [[ -n "${CH_BODY[$tgt]+x}" && -z "${seen[$tgt]+x}" ]]; then
+                queue+=("$tgt")
+            fi
+        done <<< "$body"
+    done
     return 1
 }
 
-# (مراجعة مستقلة 2026-11-04) تمييز بروتوكولات الاكتشاف الشبكي — دالة نقية:
-# الاستماع على كل الواجهات لهذه البروتوكولات تصميمي وليس تعرضاً خارجياً.
+# (مراجعة مستقلة 2026-11-05 — R6) تمييز بروتوكولات الاكتشاف الشبكي — دالة نقية:
+# الإعفاء يتطلب تطابق ثلاثي: البروتوكول (udp حصراً) + المنفذ + المالك النظامي المعروف.
+# أولاً: البروتوكول — لا يُعفى TCP مطلقاً حتى لو كان المالك avahi/systemd-resolve،
+# فالإصلاح السابق كان يعفي TCP بفحص المالك قبل البروتوكول.
+# المنفذ وحده لا يكفي: خدمة مجهولة على 5353/1900/67... لا تُعفى ولا تُخفى —
+# تسقط في التصنيف العادي فتظهر كتحذير [خارجي] قابل للمراجعة.
 # المدخلات: $1=Netid من ss (tcp/udp)، $2=العنوان المحلي، $3=المالك إن توفر.
-# بروتوكولات الاكتشاف (udp حصراً): mDNS 5353، LLMNR 5355، SSDP 1900،
-# WS-Discovery 3702، DHCP 67/68. المالكون النظاميون: avahi-daemon، systemd-resolve.
 sec_is_discovery() {
-    local netid="$1" laddr="$2" owner="${3:-}" port="${2##*:}"
-    case "$owner" in
-        avahi-daemon|systemd-resolve) return 0 ;;
-    esac
+    local netid="$1" owner="${3:-}" port="${2##*:}"
     [[ "$netid" == "udp" ]] || return 1
-    case "$port" in
-        5353|5355|1900|3702|67|68) return 0 ;;
+    case "$owner:$port" in
+        avahi-daemon:5353)                          return 0 ;;   # mDNS
+        systemd-resolve:5355|systemd-resolved:5355) return 0 ;;   # LLMNR
+        dnsmasq:67|dnsmasq:68)                      return 0 ;;   # DHCP
+        dhcpd:67|dhclient:68)                       return 0 ;;
+        NetworkManager:68|systemd-networkd:68)      return 0 ;;
+        minissdpd:1900)                             return 0 ;;   # SSDP
+        wsdd:3702)                                  return 0 ;;   # WS-Discovery
     esac
     return 1
 }
@@ -69,15 +149,15 @@ security_check() {
         fw_details="${fw_details:+${fw_details}، }firewalld نشط"
     fi
     if ! $fw_active && command -v nft &>/dev/null; then
-        # (مراجعة مستقلة 2026-11-04: وجود أسطر في ruleset لا يعني حماية —
-        #  الفعالية: سياسة إسقاط في سلسلة أساس أو حكم drop/reject صريح)
+        # (R5: الفعالية تُثبت من مسار الإدخال — سلسلة hook input بسياسة إسقاط
+        #  أو حكم إفلات ختامي غير مشروط على المسار؛ القواعد المعزولة لا تُعدّ جداراً)
         local nft_rs
         nft_rs=$(nft list ruleset 2>/dev/null)
         if sec_nft_effective "$nft_rs"; then
             fw_active=true
-            fw_details="nftables بسياسة إسقاط فعّالة"
+            fw_details="nftables بحماية فعّالة على مسار الإدخال (hook input)"
         elif [[ -n "$(printf '%s' "$nft_rs" | tr -d '[:space:]')" ]]; then
-            log_warn "nftables موجود لكن بلا سياسة إسقاط فعّالة (policy drop/reject) — قواعد بلا حماية لا تُعتبر جداراً"
+            log_warn "nftables موجود لكن بلا حماية مؤكدة على مسار الإدخال (hook input) — قواعد drop المعزولة لا تُعتبر جداراً"
         fi
     fi
     if $fw_active; then
