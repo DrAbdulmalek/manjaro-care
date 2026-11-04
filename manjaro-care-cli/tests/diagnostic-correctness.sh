@@ -461,6 +461,216 @@ table inet c {
 EOF
 assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-cycle.txt")"; echo $?)" "1" "R5: حلقة قفزات لا تُعلّق ولا تُعلن حماية"
 
+# T2) R5-2 — القواعد غير القابلة للوصول لا تُحتسب دليلاً على الحماية
+# (تحليل ترتيب القواعد: ما بعد حكم ختامي غير مشروط في السلسلة نفسها ميت،
+#  ولا يُلاحق jump/goto جاء بعد حكم يجعله غير قابل للوصول)
+
+# T2-a) الحالة المضادة 1: drop بعد accept غير مشروطة في السلسلة نفسها — لا يمكن بلوغها
+cat > "$TMP_DIR/nft-r52-dead-drop.txt" <<'EOF'
+table inet dead1 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                accept
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-dead-drop.txt")"; echo $?)" "1" "R5-2: drop بعد accept غير مشروطة → غير قابلة للوصول → لا حماية زائفة"
+
+# T2-b) الحالة المضادة 2: jump ميتة بعد accept غير مشروطة — لا يُلاحق هدفها مهما ضمّ
+cat > "$TMP_DIR/nft-r52-dead-jump.txt" <<'EOF'
+table inet dead2 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                accept
+                jump protected_chain
+        }
+        chain protected_chain {
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-dead-jump.txt")"; echo $?)" "1" "R5-2: قفزة ميتة بعد accept — protected_chain ليست جزءاً من مسار قابل للوصول"
+
+# T2-c) قفزة إلى سلسلة لا تعود أبداً (accept ختامي) تُميت drop اللاحقة لها
+cat > "$TMP_DIR/nft-r52-noret.txt" <<'EOF'
+table inet dead3 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                jump always_accept
+                drop
+        }
+        chain always_accept {
+                accept
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-noret.txt")"; echo $?)" "1" "R5-2: drop بعد قفزة إلى سلسلة لا تعود أبداً → غير قابلة للوصول"
+
+# T2-d) policy drop ميتة: accept غير مشروطة تمنع بلوغ نهاية السلسلة
+cat > "$TMP_DIR/nft-r52-dead-policy.txt" <<'EOF'
+table inet dead4 {
+        chain input {
+                type filter hook input priority 0; policy drop;
+                accept
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-dead-policy.txt")"; echo $?)" "1" "R5-2: policy drop لا تُفعَّل بعد accept غير مشروطة → لا حماية زائفة"
+
+# T2-e) return غير مشروطة تُميت ما بعدها في السلسلة المُقفز إليها (النمط القديم كان يحسب drop)
+cat > "$TMP_DIR/nft-r52-return-dead.txt" <<'EOF'
+table inet dead5 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                jump early_check
+        }
+        chain early_check {
+                return
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-return-dead.txt")"; echo $?)" "1" "R5-2: return غير مشروطة تقتل drop اللاحقة في السلسلة الهدف"
+
+# T2-f) return في السلسلة الأساس تقتل ما بعدها (drop بعدها ليس دليلاً)
+cat > "$TMP_DIR/nft-r52-base-return.txt" <<'EOF'
+table inet dead6 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                return
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-base-return.txt")"; echo $?)" "1" "R5-2: return في سلسلة الأساس تقتل drop اللاحقة"
+
+# T2-g) إيجابي: jump إلى سلسلة return ثم drop — الدليل قابل للوصول (العودة ممكنة)
+cat > "$TMP_DIR/nft-r52-ret-ok.txt" <<'EOF'
+table inet live1 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                jump early_check
+                drop
+        }
+        chain early_check {
+                return
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-ret-ok.txt")"; echo $?)" "0" "R5-2: jump إلى سلسلة return ثم drop قابل للوصول → فعّال"
+
+# T2-h) إيجابي: accept مشروطة لا تقتل الوصول — drop بعدها دليل صحيح (انحدار الترتيب)
+cat > "$TMP_DIR/nft-r52-cond-accept.txt" <<'EOF'
+table inet live2 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                tcp dport 22 accept
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-cond-accept.txt")"; echo $?)" "0" "R5-2: accept مشروطة لا تمنع بلوغ drop اللاحقة → فعّال"
+
+# T2-i) إيجابي: drop أولاً ثم accept ميتة — الدليل هو drop الأول
+cat > "$TMP_DIR/nft-r52-drop-first.txt" <<'EOF'
+table inet live3 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                drop
+                accept
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-drop-first.txt")"; echo $?)" "0" "R5-2: drop أولاً ثم accept ميتة → الدليل هو drop (تحليل الترتيب بالاتجاهين)"
+
+# T2-j) إيجابي: goto إلى سلسلة تنتهي بـ drop — دليل على مسار التطبيق
+cat > "$TMP_DIR/nft-r52-goto.txt" <<'EOF'
+table inet live4 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                goto hard_drop
+        }
+        chain hard_drop {
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-goto.txt")"; echo $?)" "0" "R5-2: goto إلى سلسلة drop غير مشروط → فعّال"
+
+# T2-k) إيجابي: صيغة nft الواقعية counter packets N bytes M drop حكم ختامي
+cat > "$TMP_DIR/nft-r52-counter.txt" <<'EOF'
+table inet live5 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                ct state established,related accept
+                counter packets 619 bytes 41346 drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-counter.txt")"; echo $?)" "0" "R5-2: counter packets N bytes M drop → دليل ختامي (صيغة واقعية)"
+
+# T2-l) إيجابي: log prefix مع drop حكم ختامي غير مشروط
+cat > "$TMP_DIR/nft-r52-logdrop.txt" <<'EOF'
+table inet live6 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                log prefix "INPUT-DROP: " drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-logdrop.txt")"; echo $?)" "0" "R5-2: log prefix ... drop → حكم ختامي غير مشروط"
+
+# T2-m) إيجابي: reject with icmpx مع عدّاد (صيغة firewalld المعروضة) حكم ختامي
+cat > "$TMP_DIR/nft-r52-creject.txt" <<'EOF'
+table inet live7 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                ct status dnat accept
+                counter packets 0 bytes 0 reject with icmpx type admin-prohibited
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-creject.txt")"; echo $?)" "0" "R5-2: counter ... reject with icmpx type → دليل ختامي (صيغة firewalld)"
+
+# T2-n) إيجابي: policy drop مع قفزة تعود — نهاية السلسلة تظل قابلة للبلوغ فتُفعَّل السياسة
+cat > "$TMP_DIR/nft-r52-policy-jump.txt" <<'EOF'
+table inet live8 {
+        chain input {
+                type filter hook input priority 0; policy drop;
+                ct state established,related accept
+                jump zones
+        }
+        chain zones {
+                return
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-policy-jump.txt")"; echo $?)" "0" "R5-2: policy drop بعد قفزة يمكنها العودة → تُفعَّل → فعّال"
+
+# T2-o) قاعدة غير محسومة (notrack) لا تقتل الوصول — drop حقيقية بعدها تبقى دليلاً
+cat > "$TMP_DIR/nft-r52-undecided.txt" <<'EOF'
+table inet live9 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                notrack
+                drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-undecided.txt")"; echo $?)" "0" "R5-2: قاعدة غير محسومة لا تحجب دليلاً حقيقياً يليها"
+
+# T2-p) أمان التحليل: كلمة accept داخل quotes في log prefix ليست حكماً — القاعدة drop
+cat > "$TMP_DIR/nft-r52-quoted.txt" <<'EOF'
+table inet live10 {
+        chain input {
+                type filter hook input priority 0; policy accept;
+                log prefix "accept" drop
+        }
+}
+EOF
+assert_eq "$(sec_nft_effective "$(< "$TMP_DIR/nft-r52-quoted.txt")"; echo $?)" "0" "R5-2: نص مقتبس داخل log prefix لا يُفسَّر كحكم — drop خاتمة حقيقية"
+
 # U) R6 — وحدات: الإعفاء ثلاثي (udp + منفذ + مالك معروف)؛ غير المؤكد يبقى تحذيراً قابلاً للمراجعة
 assert_eq "$(sec_is_discovery tcp '0.0.0.0:5353' 'avahi-daemon'; echo $?)" "1" "R6: TCP مع مالك كان يُعفى → لا إعفاء (البروتوكول أولاً)"
 assert_eq "$(sec_is_discovery tcp '127.0.0.1:5355' 'systemd-resolve'; echo $?)" "1" "R6: TCP systemd-resolve → لا إعفاء"
