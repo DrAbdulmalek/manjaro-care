@@ -79,6 +79,7 @@ udp   UNCONN 0      0                                127.0.0.54:53      0.0.0.0:
 udp   UNCONN 0      0                                192.168.122.1:53   0.0.0.0:*           users:(("dnsmasq",pid=702,fd=5))
 udp   UNCONN 0      0                                0.0.0.0%virbr0:67  0.0.0.0:*           users:(("dnsmasq",pid=702,fd=6))
 udp   UNCONN 0      0                                [::]:41641         [::]:*              users:(("tailscaled",pid=703,fd=15))
+udp   UNCONN 0      0                                0.0.0.0:9999       0.0.0.0:*           users:(("myapp",pid=705,fd=18))
 tcp   LISTEN 0      8192                             127.0.0.53%lo:53   0.0.0.0:*           users:(("systemd-resolve",pid=701,fd=17))
 EOF
 
@@ -123,7 +124,7 @@ shim btrfs <<'EOF'
 case "$1 $2" in
   "filesystem usage") echo "Used: 1.00GiB"; exit 0 ;;
   "device stats")     echo "/dev/sda2 write_io_errs 0"; echo "/dev/sda2 read_io_errs 0"; exit 0 ;;
-  "scrub status")     printf 'UUID: test-uuid\nScrub started: Sun 02 Nov 2026 03:00:00 AM +03\nStatus: %s\nDuration: 123s\nError summary: no errors found\n' "${SCRUB_STATE:-}"; exit 0 ;;
+  "scrub status")     printf 'UUID: test-uuid\nScrub started: Sun 02 Nov 2026 03:00:00 AM +03\nStatus: %s\nDuration: 123s\nError summary: %s\n' "${SCRUB_STATE:-}" "${SCRUB_ERRS:-no errors found}"; exit 0 ;;
   *) exit 0 ;;
 esac
 EOF
@@ -169,6 +170,14 @@ case "$1" in
 esac
 EOF
 
+shim nft <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "list ruleset") cat "${NFT_FILE:-/dev/null}" ;;
+  *) exit 0 ;;
+esac
+EOF
+
 shim ufw <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
@@ -197,6 +206,21 @@ assert_eq "$(sec_classify_local '192.168.122.1:53')"                "lan"      "
 assert_eq "$(sec_classify_local '0.0.0.0%virbr0:67')"               "virtual"  "addr %virbr0 → virtual"
 assert_eq "$(sec_classify_local '[::]:41641')"                      "wildcard" "addr [::] → wildcard"
 assert_eq "$(sec_classify_local '[fe80::99df:9ddf:cdf1:a22e%wlo1]:546')" "lan" "addr fe80 → lan"
+
+# B2) مراجعة مستقلة — فعالية nftables (دالة نقية)
+assert_eq "$(sec_nft_effective 'table inet f { chain input { type filter hook input priority 0; policy drop; } }'; echo $?)" "0" "nft: policy drop → فعّال"
+assert_eq "$(sec_nft_effective 'table inet t { chain c { type filter hook input priority 0; policy accept; } }'; echo $?)" "1" "nft: policy accept فقط → غير فعّال"
+assert_eq "$(sec_nft_effective 'table ip nat { chain p { type nat hook postrouting priority 100; masquerade } }'; echo $?)" "1" "nft: NAT فقط → غير فعّال"
+assert_eq "$(sec_nft_effective 'counter ip saddr 1.2.3.4 drop'; echo $?)" "0" "nft: حكم drop صريح → فعّال"
+assert_eq "$(sec_nft_effective 'chain x { counter } # drop here'; echo $?)" "1" "nft: كلمة drop بعد # لا تُعدّ دليلاً"
+
+# B3) مراجعة مستقلة — تمييز بروتوكولات الاكتشاف (دالة نقية)
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5353' 'avahi-daemon'; echo $?)" "0" "disc: avahi mDNS → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:5355' ''; echo $?)" "0" "disc: LLMNR 5355 → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:1900' ''; echo $?)" "0" "disc: SSDP 1900 → اكتشاف"
+assert_eq "$(sec_is_discovery udp '0.0.0.0:9999' 'myapp'; echo $?)" "1" "disc: منفذ مجهول → ليس اكتشافاً"
+assert_eq "$(sec_is_discovery tcp '0.0.0.0:9999' ''; echo $?)" "1" "disc: tcp لا يدخل الاكتشاف بالمنفذ"
+
 
 # C) BUG-CLI-01 — سيناريو scrub متقطع: يُحسب ولا يعلن سليماً
 export SCRUB_STATE="interrupted"
@@ -257,7 +281,8 @@ assert_not_contains "$RUN_OUT" "127.0.0.54" "security → loopback ليس خار
 assert_not_contains "$RUN_OUT" "127.0.0.53%lo" "security → loopback%lo ليس خارجياً"
 assert_contains "$RUN_OUT" "[افتراضية]" "security → virbr0 مصنّف افتراضية"
 assert_contains "$RUN_OUT" "[vpn]" "security → tailscaled مصنّف vpn"
-assert_contains "$RUN_OUT" "[خارجي] udp 0.0.0.0:5353" "security → 0.0.0.0:5353 خارجي فعلاً"
+assert_contains "$RUN_OUT" "[اكتشاف شبكي] udp 0.0.0.0:5353" "security → avahi 5353 اكتشاف شبكي لا إنذار (مراجعة مستقلة)"
+assert_contains "$RUN_OUT" "[خارجي] udp 0.0.0.0:9999" "security → خدمة مجهولة 9999 على 0.0.0.0 = تعرض فعلي"
 assert_contains "$RUN_OUT" "حاوية مكشوفة: telegram-tools" "security → الحاوية المكشوفة بالاسم"
 assert_contains "$RUN_OUT" "لا يوجد جدار حماية فعّال" "security → الجدار المعطل يُرصد"
 assert_contains "$RUN_OUT" "تم اكتشاف" "security → الحكم الإجمالي يعكس المشاكل"
@@ -295,6 +320,63 @@ assert_contains "$RUN_OUT" "16 ملف .pacnew/.pacsave" "pacnew truncation → �
 assert_contains "$RUN_OUT" "العرض مقتطع: 15 من 16" "pacnew truncation → الإعلان موجود"
 assert_rc_zero "$RUN_RC" "pacnew truncation → غير الحرجة لا تُحسب (تصميم مُوثّق)"
 unset CARE_PACNEW_ROOT
+
+# M) حارس السقف — 256 مشكلة: RC=255 (لا يلتف إلى 0) والعرض يبقى بالعدد الحقيقي
+export FAILED_UNITS="$(for i in $(seq 1 256); do printf 'unit%03d.service loaded failed failed Test\n' "$i"; done)"
+case_run service-check.sh service_check
+assert_eq "$RUN_RC" "255" "cap-255 → RC=255 لا 0 (لا التفاف)"
+assert_contains "$RUN_OUT" "256 خدمة فاشلة" "cap-255 → العرض يذكر العدد الحقيقي 256"
+unset FAILED_UNITS
+
+# N) حالات scrub الحدّية — aborted / running / finished-with-errors / حروف كبيرة
+export SCRUB_STATE="aborted"
+case_run btrfs-check.sh btrfs_check
+assert_rc_nonzero "$RUN_RC" "scrub aborted → RC≠0"
+assert_contains "$RUN_OUT" "توقف scrub قسراً" "scrub aborted → يُرصد بالاسم"
+unset SCRUB_STATE
+export SCRUB_STATE="running"
+case_run btrfs-check.sh btrfs_check
+assert_rc_zero "$RUN_RC" "scrub running → RC=0 (تشغيل ليس عطباً)"
+assert_contains "$RUN_OUT" "قيد التشغيل الآن" "scrub running → إبلاغ بالحالة"
+unset SCRUB_STATE
+export SCRUB_STATE="finished" SCRUB_ERRS="uncorrectable: 2"
+case_run btrfs-check.sh btrfs_check
+assert_rc_nonzero "$RUN_RC" "scrub finished-with-errors → RC≠0"
+assert_contains "$RUN_OUT" "اكتمل مع أخطاء" "scrub finished-with-errors → الأخطاء تُذكر"
+unset SCRUB_STATE SCRUB_ERRS
+assert_eq "$(btrfs_classify_scrub 'Status: FINISHED')" "finished" "scrub: FINISHED بحروف كبيرة → finished"
+
+# O) مراجعة مستقلة — ملف حرج في الموقع 16 يُحسب رغم عدم عرضه
+mkdir -p "$TMP_DIR/pacnew-o"
+for i in $(seq -w 1 15); do touch "$TMP_DIR/pacnew-o/aaa$i.conf.pacnew"; done
+touch "$TMP_DIR/pacnew-o/fstab.pacnew"
+export CARE_PACNEW_ROOT="$TMP_DIR/pacnew-o"
+case_run package-check.sh package_check
+assert_rc_nonzero "$RUN_RC" "critical-at-16 → RC≠0"
+assert_contains "$RUN_OUT" "16 ملف .pacnew/.pacsave" "critical-at-16 → العدد الكامل 16"
+assert_contains "$RUN_OUT" "من ضمنها 1 ملف حرج مُحتسب" "critical-at-16 → إعلان العدّ خارج العرض"
+unset CARE_PACNEW_ROOT
+
+# P) مراجعة مستقلة — nftables: بلا سياسة إسقاط = ليس جداراً؛ بسياسة drop = فعّال
+export NFT_FILE="$TMP_DIR/nft-accept.txt"
+printf 'table inet filter {\n\tchain input { type filter hook input priority 0; policy accept; }\n}\n' > "$TMP_DIR/nft-accept.txt"
+export SS_FILE="$TMP_DIR/ss-clean.txt" DOCKER_PS=""
+case_run security-check.sh security_check
+assert_contains "$RUN_OUT" "بلا سياسة إسقاط فعّالة" "nft accept-only → يُرصد كغير فعّال"
+assert_rc_nonzero "$RUN_RC" "nft accept-only → RC≠0 (ليس جداراً)"
+printf 'table inet filter {\n\tchain input { type filter hook input priority 0; policy drop; }\n}\n' > "$TMP_DIR/nft-accept.txt"
+export UFW_STATE="inactive" CARE_RESOLVED_CONF="$TMP_DIR/resolved.conf" CARE_RESOLVED_CONF_D="$TMP_DIR/resolved.d"
+case_run security-check.sh security_check
+assert_contains "$RUN_OUT" "nftables بسياسة إسقاط فعّالة" "nft policy drop → جدار فعّال"
+assert_rc_zero "$RUN_RC" "nft policy drop → سيناريو نظيف يبقى سليماً"
+unset NFT_FILE SS_FILE DOCKER_PS UFW_STATE CARE_RESOLVED_CONF CARE_RESOLVED_CONF_D
+
+# R) مراجعة مستقلة — Docker نشر IPv6 بصيغة :::port يُحسب مكشوفاً
+export SS_FILE="$TMP_DIR/ss-clean.txt" DOCKER_PS="mybox: :::8080->80/tcp"
+case_run security-check.sh security_check
+assert_contains "$RUN_OUT" "حاوية مكشوفة: mybox" "docker :::8080 → يُحسب مكشوفاً"
+assert_rc_nonzero "$RUN_RC" "docker :::8080 → RC≠0"
+unset SS_FILE DOCKER_PS
 
 echo "─────────────────────────────"
 echo "GUARD: $PASS نجح، $FAIL فشل"

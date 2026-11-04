@@ -17,6 +17,39 @@ sec_classify_local() {
     esac
 }
 
+# (مراجعة مستقلة 2026-11-04) فعالية ruleset لـ nftables — دالة نقية:
+# الإدخال: نص nft list ruleset. المخرج: 0 إذا فيه حماية فعلية.
+# حماية فعلية = سياسة إسقاط في سلسلة أساس (policy drop/reject)
+# أو حكم drop/reject صريح. نصوص comment تُجرّد أولاً كي لا تُعدّ دليلاً.
+sec_nft_effective() {
+    local rs="${1:-}"
+    rs=$(printf '%s\n' "$rs" | sed 's/comment "[^"]*"//g; s/#.*//')
+    if printf '%s\n' "$rs" | grep -Eq 'policy[[:space:]]+(drop|reject)'; then
+        return 0
+    fi
+    if printf '%s\n' "$rs" | grep -Eq '(^|[[:space:];{])(drop|reject)([[:space:];}]|$)'; then
+        return 0
+    fi
+    return 1
+}
+
+# (مراجعة مستقلة 2026-11-04) تمييز بروتوكولات الاكتشاف الشبكي — دالة نقية:
+# الاستماع على كل الواجهات لهذه البروتوكولات تصميمي وليس تعرضاً خارجياً.
+# المدخلات: $1=Netid من ss (tcp/udp)، $2=العنوان المحلي، $3=المالك إن توفر.
+# بروتوكولات الاكتشاف (udp حصراً): mDNS 5353، LLMNR 5355، SSDP 1900،
+# WS-Discovery 3702، DHCP 67/68. المالكون النظاميون: avahi-daemon، systemd-resolve.
+sec_is_discovery() {
+    local netid="$1" laddr="$2" owner="${3:-}" port="${2##*:}"
+    case "$owner" in
+        avahi-daemon|systemd-resolve) return 0 ;;
+    esac
+    [[ "$netid" == "udp" ]] || return 1
+    case "$port" in
+        5353|5355|1900|3702|67|68) return 0 ;;
+    esac
+    return 1
+}
+
 security_check() {
     log_section "فحص الأمان"
     
@@ -36,9 +69,15 @@ security_check() {
         fw_details="${fw_details:+${fw_details}، }firewalld نشط"
     fi
     if ! $fw_active && command -v nft &>/dev/null; then
-        if [[ $(nft list ruleset 2>/dev/null | wc -l) -gt 2 ]]; then
+        # (مراجعة مستقلة 2026-11-04: وجود أسطر في ruleset لا يعني حماية —
+        #  الفعالية: سياسة إسقاط في سلسلة أساس أو حكم drop/reject صريح)
+        local nft_rs
+        nft_rs=$(nft list ruleset 2>/dev/null)
+        if sec_nft_effective "$nft_rs"; then
             fw_active=true
-            fw_details="قواعد nftables مفعّلة"
+            fw_details="nftables بسياسة إسقاط فعّالة"
+        elif [[ -n "$(printf '%s' "$nft_rs" | tr -d '[:space:]')" ]]; then
+            log_warn "nftables موجود لكن بلا سياسة إسقاط فعّالة (policy drop/reject) — قواعد بلا حماية لا تُعتبر جداراً"
         fi
     fi
     if $fw_active; then
@@ -58,7 +97,10 @@ security_check() {
     
     # 3. التحقق من المنافذ المفتوحة
     # (BUG-CLI-05: التصنيف من عمود العنوان المحلي فقط؛ tcp وudp معاً؛
-    #  المالك يُعرض عند توفر الصلاحية؛ الإعفاء الوحيد: tailscaled — سلوكه الطبيعي)
+    #  المالك يُعرض عند توفر الصلاحية؛
+    #  مراجعة مستقلة 2026-11-04: الاستماع على كل الواجهات ≠ تعرض خارجي —
+    #  بروتوكولات الاكتشاف (mDNS/LLMNR/SSDP/WS-Disc/DHCP) تُميّز ولا تُحسب،
+    #  والإعفاء الوحيد بالمالك: tailscaled — سلوكه الطبيعي)
     log_info "التحقق من المنافذ المفتوحة..."
     local ss_out tcp_count udp_count ext_count line laddr owner cls
     ss_out=$(ss -tulnp 2>/dev/null | awk 'NR>1')
@@ -78,6 +120,9 @@ security_check() {
         if [[ "$cls" == "wildcard" && "$owner" == "tailscaled" ]]; then
             cls="vpn"
         fi
+        if [[ "$cls" == "wildcard" ]] && sec_is_discovery "$(printf '%s' "$line" | awk '{print $1}')" "$laddr" "$owner"; then
+            cls="discovery"
+        fi
         case "$cls" in
             loopback)
                 : ;;
@@ -85,6 +130,8 @@ security_check() {
                 log_info "  [افتراضية] $(printf '%s' "$line" | awk '{print $1}') $laddr (Docker/libvirt)" ;;
             vpn)
                 log_info "  [vpn] $(printf '%s' "$line" | awk '{print $1}') $laddr (${owner:-غير معروف})" ;;
+            discovery)
+                log_info "  [اكتشاف شبكي] $(printf '%s' "$line" | awk '{print $1}') $laddr (${owner:-غير معروف}) — بروتوكول اكتشاف بالتصميم، ليس تعرضاً" ;;
             lan)
                 log_info "  [شبكة محلية] $(printf '%s' "$line" | awk '{print $1}') $laddr" ;;
             wildcard)
@@ -113,8 +160,8 @@ security_check() {
         exposed=0
         while IFS= read -r dline; do
             [[ -n "$dline" ]] || continue
-            if printf '%s' "$dline" | grep -Eq "0\.0\.0\.0|\[::\]"; then
-                log_warn "حاوية مكشوفة: $dline — الإصلاح: أعد نشرها بربط محلي (127.0.0.1) بدل 0.0.0.0"
+            if printf '%s' "$dline" | grep -Eq "0\.0\.0\.0:[0-9]+->|:::[0-9]+->|\[::\]:[0-9]+->"; then
+                log_warn "حاوية مكشوفة: $dline — الإصلاح: أعد نشرها بربط محلي (127.0.0.1) بدل 0.0.0.0/::"
                 exposed=$((exposed + 1))
             fi
         done <<< "$(docker ps --format "{{.Names}}: {{.Ports}}" 2>/dev/null)"

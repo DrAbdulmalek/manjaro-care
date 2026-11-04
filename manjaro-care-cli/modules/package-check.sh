@@ -73,22 +73,33 @@ package_check() {
         log_warn "تم العثور على $pacnew_count ملف .pacnew/.pacsave"
         shown=0
         pacnew_crit=0
+        # (مراجعة مستقلة 2026-11-04: العدّ مستقل عن العرض — الملف الحرج رقم 16+
+        #  وما بعده يُحسب حتى لو لم يُعرض، والاقتطاع يمس السجل لا العدّ)
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
+            local is_crit=false
+            case "$f" in
+                */default/grub*|*/mkinitcpio.conf*|*/locale.gen*|*/pacman.conf*|*/fstab*|*/crypttab*|*/vconsole.conf*|*/NetworkManager/*|*/systemd/*|*/plymouth/*)
+                    is_crit=true ;;
+            esac
+            if $is_crit; then
+                pacnew_crit=$((pacnew_crit + 1))   # (العدّ مستقل عن العرض)
+            fi
             if [[ $shown -lt 15 ]]; then
-                case "$f" in
-                    */default/grub*|*/mkinitcpio.conf*|*/locale.gen*|*/pacman.conf*|*/fstab*|*/crypttab*|*/vconsole.conf*|*/NetworkManager/*|*/systemd/*|*/plymouth/*)
-                        log_warn "  [حرج] $f — مراجعة يدوية عبر: sudo pacdiff"
-                        pacnew_crit=$((pacnew_crit + 1)) ;;
-                    *)
-                        log_warn "  $f" ;;
-                esac
+                if $is_crit; then
+                    log_warn "  [حرج] $f — مراجعة يدوية عبر: sudo pacdiff"
+                else
+                    log_warn "  $f"
+                fi
             fi
             shown=$((shown + 1))
         done <<< "$pacnew_list"
         problems=$((problems + pacnew_crit))
         if [[ $pacnew_count -gt 15 ]]; then
             log_warn "  (العرض مقتطع: 15 من $pacnew_count — القائمة الكاملة: find $pacnew_root \\( -name '*.pacnew' -o -name '*.pacsave' \\))"
+            if [[ $pacnew_crit -gt 0 ]]; then
+                log_warn "  (من ضمنها $pacnew_crit ملف حرج مُحتسب — بعضها قد يكون خارج الـ15 المعروضة)"
+            fi
         fi
         log_info "لن يُدمج أو يُستبدل أي ملف تلقائياً — المراجعة اليدوية: sudo pacdiff"
     else
