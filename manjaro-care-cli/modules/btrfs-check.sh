@@ -5,6 +5,21 @@
 #  الرقمية؛ وحذف اللقطات صار بوسم تاريخي موثوق وتأكيد)
 #
 
+# BUG-CLI-01: تصنيف حالة scrub — دالة نقية قابلة للاختبار دون جهاز حقيقي أو root
+# المدخل: مخرجات btrfs scrub status (قد تكون فارغة)
+# المخرج: running | finished | interrupted | aborted | unknown
+btrfs_classify_scrub() {
+    local out="$1" st
+    st=$(printf '%s' "$out" | sed -n 's/^[[:space:]]*[Ss]tatus:[[:space:]]*//p' | head -n1 | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+    case "$st" in
+        running)     printf 'running\n' ;;
+        finished)    printf 'finished\n' ;;
+        interrupted) printf 'interrupted\n' ;;
+        aborted)     printf 'aborted\n' ;;
+        *)           printf 'unknown\n' ;;
+    esac
+}
+
 btrfs_check() {
     log_section "فحص Btrfs وTimeshift"
     
@@ -61,10 +76,42 @@ btrfs_check() {
     fi
     
     # 5. التحقق من حالة scrub
-    log_info "التحقق من حالة scrub..."
-    local scrub_status
-    scrub_status=$(btrfs scrub status / 2>/dev/null | grep "Status" || echo "unknown")
-    log_info "حالة scrub: $scrub_status"
+    # (BUG-CLI-01: الحالة تُصنَّف وتُحتسب في الحكم؛ المجهول = فحص غير مكتمل وليس PASS)
+    if findmnt -no FSTYPE / | grep -q "btrfs"; then
+        log_info "التحقق من حالة scrub..."
+        local scrub_raw scrub_state scrub_started scrub_errs
+        scrub_raw=$(btrfs scrub status / 2>/dev/null || true)
+        scrub_state=$(btrfs_classify_scrub "$scrub_raw")
+        case "$scrub_state" in
+            running)
+                log_info "scrub قيد التشغيل الآن — راجع التقدم: sudo btrfs scrub status /"
+                ;;
+            finished)
+                scrub_started=$(printf '%s' "$scrub_raw" | grep -m1 "Scrub started" | cut -d: -f2- | xargs || true)
+                scrub_errs=$(printf '%s' "$scrub_raw" | grep -m1 "Error summary" | cut -d: -f2- | xargs || true)
+                if printf '%s' "$scrub_errs" | grep -qi "no errors"; then
+                    log_ok "آخر scrub اكتمل بلا أخطاء (بدأ: ${scrub_started:-غير معروف})"
+                else
+                    log_warn "آخر scrub اكتمل مع أخطاء: ${scrub_errs:-غير معروف} (بدأ: ${scrub_started:-غير معروف})"
+                    problems=$((problems + 1))
+                fi
+                ;;
+            interrupted)
+                log_warn "scrub متقطع منذ آخر تشغيل — استئناف يدوي: sudo btrfs scrub resume /"
+                problems=$((problems + 1))
+                ;;
+            aborted)
+                log_err "توقف scrub قسراً (aborted) — راجع سجل النواة ثم أعد التشغيل: sudo btrfs scrub start -B /"
+                problems=$((problems + 1))
+                ;;
+            *)
+                log_warn "تعذر تحديد حالة scrub — فحص غير مكتمل (قد يتطلب صلاحيات root)"
+                problems=$((problems + 1))
+                ;;
+        esac
+    else
+        log_info "الجذر ليس btrfs — فحص scrub غير منطبق"
+    fi
     
     echo ""
     if [[ $problems -eq 0 ]]; then
@@ -73,6 +120,9 @@ btrfs_check() {
         log_err "تم اكتشاف $problems مشكلة"
     fi
     
+    # حارس الاتساق: رمز الخروج في bash محدود 0-255 والقيم فوقه تلتف
+    # (256 مشكلة → 0 → «سليم» زائفة) — نسقف قبل الإرجاع
+    (( problems > 255 )) && problems=255
     return $problems
 }
 

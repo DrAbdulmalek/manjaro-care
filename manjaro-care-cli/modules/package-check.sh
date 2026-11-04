@@ -60,33 +60,66 @@ package_check() {
         log_ok "النظام محدث"
     fi
     
-    # 5. التحقق من ملفات .pacnew
+    # 5. التحقق من ملفات .pacnew/.pacsave
+    # (BUG-CLI-03: العدد يطابق القائمة؛ الاقتطاع يُعلن؛ لا دمج تلقائي؛
+    #  الملفات الحرجة تُوسم وتُحتسب في problems — التحذير بلا عدّ هو عين العيب الذي نُصلحه)
     log_info "التحقق من ملفات .pacnew/.pacsave..."
-    local pacnew_count
-    pacnew_count=$(find /etc -name "*.pacnew" -o -name "*.pacsave" 2>/dev/null | wc -l)
-    
+    local pacnew_root="${CARE_PACNEW_ROOT:-/etc}"
+    local pacnew_list pacnew_count pacnew_crit shown f
+    pacnew_list=$(find "$pacnew_root" \( -name "*.pacnew" -o -name "*.pacsave" \) 2>/dev/null | LC_ALL=C sort)
+    pacnew_count=$(printf '%s\n' "$pacnew_list" | grep -c . || true)
+    pacnew_count=$(( ${pacnew_count:-0} + 0 ))
     if [[ $pacnew_count -gt 0 ]]; then
         log_warn "تم العثور على $pacnew_count ملف .pacnew/.pacsave"
-        find /etc -name "*.pacnew" -o -name "*.pacsave" 2>/dev/null | head -5 | while read -r f; do
-            log_warn "  $f"
-        done
+        shown=0
+        pacnew_crit=0
+        while IFS= read -r f; do
+            [[ -n "$f" ]] || continue
+            if [[ $shown -lt 15 ]]; then
+                case "$f" in
+                    */default/grub*|*/mkinitcpio.conf*|*/locale.gen*|*/pacman.conf*|*/fstab*|*/crypttab*|*/vconsole.conf*|*/NetworkManager/*|*/systemd/*|*/plymouth/*)
+                        log_warn "  [حرج] $f — مراجعة يدوية عبر: sudo pacdiff"
+                        pacnew_crit=$((pacnew_crit + 1)) ;;
+                    *)
+                        log_warn "  $f" ;;
+                esac
+            fi
+            shown=$((shown + 1))
+        done <<< "$pacnew_list"
+        problems=$((problems + pacnew_crit))
+        if [[ $pacnew_count -gt 15 ]]; then
+            log_warn "  (العرض مقتطع: 15 من $pacnew_count — القائمة الكاملة: find $pacnew_root \\( -name '*.pacnew' -o -name '*.pacsave' \\))"
+        fi
+        log_info "لن يُدمج أو يُستبدل أي ملف تلقائياً — المراجعة اليدوية: sudo pacdiff"
     else
         log_ok "لا توجد ملفات .pacnew/.pacsave"
     fi
     
-    # 6. التحقق من حزم AUR المعطوبة (مكتبات مفقودة في الثنائيات — حالة orthanc)
-    log_info "التحقق من حزم AUR (قد يستغرق دقيقة)..."
-    local broken_aur=0 pkg bin_path
-    while IFS= read -r pkg; do
-        [[ -n "$pkg" ]] || continue
-        bin_path="$(pacman -Ql "$pkg" 2>/dev/null | awk '$2 ~ /^\/usr\/bin\//{print $2; exit}')"
-        [[ -n "$bin_path" && -x "$bin_path" ]] || continue
-        if ldd "$bin_path" 2>/dev/null | grep -q "not found"; then
-            log_warn "حزمة AUR معطوبة: $pkg (مكتبة مفقودة في $bin_path)"
-            broken_aur=$((broken_aur + 1))
-        fi
-    done < <(pacman -Qmq 2>/dev/null | head -30)
-    (( broken_aur > 0 )) && problems=$((problems + broken_aur))
+    # 6. فحص حزم AUR المعطوبة (مكتبات مفقودة في الثنائيات — حالة orthanc)
+    # (شفافية فحص AUR: ماذا فُحص، ماذا تُخطي، ماذا وُجد، وهل اكتمل)
+    log_info "التحقق من حزم AUR..."
+    if ! command -v pacman &>/dev/null; then
+        log_warn "تعذر فحص AUR: pacman غير متوفر — فحص غير مكتمل"
+        problems=$((problems + 1))
+    else
+        local broken_aur=0 aur_total=0 aur_no_bin=0 pkg bin_path
+        while IFS= read -r pkg; do
+            [[ -n "$pkg" ]] || continue
+            aur_total=$((aur_total + 1))
+            bin_path="$(pacman -Ql "$pkg" 2>/dev/null | awk '$2 ~ /^\/usr\/bin\//{print $2; exit}')"
+            if [[ -z "$bin_path" || ! -x "$bin_path" ]]; then
+                aur_no_bin=$((aur_no_bin + 1))
+                continue
+            fi
+            if ldd "$bin_path" 2>/dev/null | grep -q "not found"; then
+                log_warn "حزمة AUR معطوبة: $pkg (مكتبة مفقودة في $bin_path)"
+                broken_aur=$((broken_aur + 1))
+            fi
+        done < <(pacman -Qmq 2>/dev/null | head -30)
+        log_info "ملخص فحص AUR: ${aur_total} حزمة أجنبية في النطاق (أول 30)، ${aur_no_bin} بلا تنفيذي في /usr/bin (تخطي)، ${broken_aur} معطوبة"
+        log_info "حالة فحص AUR: اكتمل"
+        (( broken_aur > 0 )) && problems=$((problems + broken_aur))
+    fi
     
     echo ""
     if [[ $problems -eq 0 ]]; then
@@ -95,6 +128,9 @@ package_check() {
         log_err "تم اكتشاف $problems مشكلة"
     fi
     
+    # حارس الاتساق: رمز الخروج في bash محدود 0-255 والقيم فوقه تلتف
+    # (256 مشكلة → 0 → «سليم» زائفة) — نسقف قبل الإرجاع
+    (( problems > 255 )) && problems=255
     return $problems
 }
 

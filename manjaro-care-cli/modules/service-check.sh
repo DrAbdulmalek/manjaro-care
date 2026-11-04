@@ -9,15 +9,19 @@ service_check() {
     local problems=0
     
     # 1. الخدمات الفاشلة
+    # (BUG-CLI-02: أسماء الوحدات تمر عبر المسجل لتصل إلى التقرير وليس الطرفية فقط)
     log_info "البحث عن خدمات فاشلة..."
-    local failed_services
-    failed_services=$(systemctl --failed --no-legend 2>/dev/null | wc -l || true)
-    failed_services=$(( ${failed_services:-0} + 0 ))
-    
-    if [[ $failed_services -gt 0 ]]; then
-        log_err "يوجد $failed_services خدمة فاشلة"
-        systemctl --failed --no-pager 2>/dev/null | head -10 || true
-        problems=$((problems + failed_services))
+    local failed_list failed_count row
+    failed_list=$(systemctl --failed --no-legend 2>/dev/null | awk 'NF' || true)
+    failed_count=$(printf '%s\n' "$failed_list" | grep -c . || true)
+    failed_count=$(( ${failed_count:-0} + 0 ))
+
+    if [[ $failed_count -gt 0 ]]; then
+        log_err "يوجد $failed_count خدمة فاشلة"
+        printf '%s\n' "$failed_list" | head -10 | while IFS= read -r row; do
+            log_err "  خدمة فاشلة: $(printf '%s' "$row" | awk '{print $1}') (الحالة: $(printf '%s' "$row" | awk '{print $4}')) — التفاصيل: systemctl status $(printf '%s' "$row" | awk '{print $1}')"
+        done
+        problems=$((problems + failed_count))
     else
         log_ok "لا توجد خدمات فاشلة"
     fi
@@ -78,6 +82,9 @@ service_check() {
         log_err "تم اكتشاف $problems مشكلة"
     fi
     
+    # حارس الاتساق: رمز الخروج في bash محدود 0-255 والقيم فوقه تلتف
+    # (256 مشكلة → 0 → «سليم» زائفة) — نسقف قبل الإرجاع
+    (( problems > 255 )) && problems=255
     return $problems
 }
 

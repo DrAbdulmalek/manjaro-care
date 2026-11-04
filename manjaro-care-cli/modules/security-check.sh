@@ -3,21 +3,49 @@
 # وحدة فحص الأمان (مُصحّحة: عد الموانف بلا تكرار، فحص LLMNR بلا glob فارغ)
 #
 
+# BUG-CLI-04: تصنيف عنوان الربط المحلي — دالة نقية قابلة للاختبار دون جهاز حقيقي أو root
+# المدخل: العنوان المحلي بصيغة ss (مثل 0.0.0.0:7860 أو 127.0.0.53:53 أو [::]:41641 أو 0.0.0.0%virbr0:67)
+# المخرج: loopback | virtual | lan | wildcard | other
+sec_classify_local() {
+    local host="${1%:*}"
+    case "$host" in
+        127.*|::1|\[::1\])                                      printf 'loopback\n' ;;
+        *%virbr*|*%veth*|*%br-*|*%docker*|*%tap*)               printf 'virtual\n' ;;
+        0.0.0.0|\*|\[::\])                                      printf 'wildcard\n' ;;
+        192.168.*|10.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|\[fe80*|fe80*) printf 'lan\n' ;;
+        *)                                                      printf 'other\n' ;;
+    esac
+}
+
 security_check() {
     log_section "فحص الأمان"
     
     local problems=0
     
     # 1. التحقق من جدار الحماية
+    # (BUG-CLI-04: لا نفترض ufw وحده — ufw وfirewalld وقواعد nftables؛
+    #  النتيجة تُحتسب في problems، وقواعد فارغة وحدها لا تعني تعرضاً)
     log_info "التحقق من جدار الحماية..."
-    if command -v ufw &>/dev/null; then
-        if ufw status | grep -q "Status: active"; then
-            log_ok "جدار الحماية نشط"
-        else
-            log_warn "جدار الحماية معطل"
+    local fw_active=false fw_details=""
+    if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+        fw_active=true
+        fw_details="ufw نشط"
+    fi
+    if command -v firewall-cmd &>/dev/null && firewall-cmd --state 2>/dev/null | grep -q "running"; then
+        fw_active=true
+        fw_details="${fw_details:+${fw_details}، }firewalld نشط"
+    fi
+    if ! $fw_active && command -v nft &>/dev/null; then
+        if [[ $(nft list ruleset 2>/dev/null | wc -l) -gt 2 ]]; then
+            fw_active=true
+            fw_details="قواعد nftables مفعّلة"
         fi
+    fi
+    if $fw_active; then
+        log_ok "جدار الحماية نشط (${fw_details})"
     else
-        log_warn "ufw غير مثبت"
+        log_warn "لا يوجد جدار حماية فعّال (ufw/firewalld/nftables) — الإصلاح: sudo mcare security firewall"
+        problems=$((problems + 1))
     fi
     
     # 2. التحقق من SSH
@@ -29,38 +57,79 @@ security_check() {
     fi
     
     # 3. التحقق من المنافذ المفتوحة
+    # (BUG-CLI-05: التصنيف من عمود العنوان المحلي فقط؛ tcp وudp معاً؛
+    #  المالك يُعرض عند توفر الصلاحية؛ الإعفاء الوحيد: tailscaled — سلوكه الطبيعي)
     log_info "التحقق من المنافذ المفتوحة..."
-    local open_ports
-    open_ports=$(ss -tuln 2>/dev/null | grep -c "LISTEN" || true)
-    open_ports=$(( ${open_ports:-0} + 0 ))
-    log_info "يوجد $open_ports منفذ مفتوح"
-    
-    # عرض المنافذ الخارجية
-    log_info "المنافذ الخارجية:"
-    ss -tuln 2>/dev/null | grep "0.0.0.0\|\[::" | head -10 | while read -r line; do
-        log_warn "  $line"
-    done || true
+    local ss_out tcp_count udp_count ext_count line laddr owner cls
+    ss_out=$(ss -tulnp 2>/dev/null | awk 'NR>1')
+    tcp_count=$(printf '%s\n' "$ss_out" | awk '$1 ~ /^tcp/ && $2 == "LISTEN"' | grep -c . || true)
+    udp_count=$(printf '%s\n' "$ss_out" | awk '$1 ~ /^udp/' | grep -c . || true)
+    tcp_count=$(( ${tcp_count:-0} + 0 ))
+    udp_count=$(( ${udp_count:-0} + 0 ))
+    log_info "المنافذ المفتوحة: $((tcp_count + udp_count)) (${tcp_count} tcp مستمع + ${udp_count} udp)"
+
+    log_info "المنافذ المنشورة على جميع الواجهات (خارجية فعلاً):"
+    ext_count=0
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        laddr=$(printf '%s' "$line" | awk '{print $5}')
+        owner=$(printf '%s' "$line" | sed -n 's/^.*users:(("\([^"]*\)".*/\1/p')
+        cls=$(sec_classify_local "$laddr")
+        if [[ "$cls" == "wildcard" && "$owner" == "tailscaled" ]]; then
+            cls="vpn"
+        fi
+        case "$cls" in
+            loopback)
+                : ;;
+            virtual)
+                log_info "  [افتراضية] $(printf '%s' "$line" | awk '{print $1}') $laddr (Docker/libvirt)" ;;
+            vpn)
+                log_info "  [vpn] $(printf '%s' "$line" | awk '{print $1}') $laddr (${owner:-غير معروف})" ;;
+            lan)
+                log_info "  [شبكة محلية] $(printf '%s' "$line" | awk '{print $1}') $laddr" ;;
+            wildcard)
+                ext_count=$((ext_count + 1))
+                log_warn "  [خارجي] $(printf '%s' "$line" | awk '{print $1}') $laddr ${owner:+($owner)}" ;;
+            *)
+                ext_count=$((ext_count + 1))
+                log_warn "  [خارجي؟] $(printf '%s' "$line" | awk '{print $1}') $laddr ${owner:+($owner)}" ;;
+        esac
+    done <<< "$ss_out"
+    if [[ $ext_count -gt 0 ]]; then
+        log_warn "$ext_count منفذاً منشورة على جميع الواجهات — راجع القائمة أعلاه"
+        problems=$((problems + 1))
+    else
+        log_ok "لا توجد منافذ منشورة على جميع الواجهات"
+    fi
     
     # 4. التحقق من Docker
+    # (BUG-CLI-06: الحاوية المكشوفة تُحتسب في problems مع إرشاد إصلاح)
     log_info "التحقق من حاويات Docker..."
     if command -v docker &>/dev/null && docker ps &>/dev/null; then
-        local containers
-        containers=$(docker ps --format "{{.Names}}: {{.Ports}}" 2>/dev/null | wc -l || true)
+        local containers exposed dline
+        containers=$(docker ps --format "{{.Names}}: {{.Ports}}" 2>/dev/null | grep -c . || true)
         containers=$(( ${containers:-0} + 0 ))
         log_info "يوجد $containers حاوية عاملة"
-        
-        docker ps --format "{{.Names}}: {{.Ports}}" 2>/dev/null | while read -r line; do
-            if echo "$line" | grep -q "0.0.0.0"; then
-                log_warn "حاوية مكشوفة: $line"
+        exposed=0
+        while IFS= read -r dline; do
+            [[ -n "$dline" ]] || continue
+            if printf '%s' "$dline" | grep -Eq "0\.0\.0\.0|\[::\]"; then
+                log_warn "حاوية مكشوفة: $dline — الإصلاح: أعد نشرها بربط محلي (127.0.0.1) بدل 0.0.0.0"
+                exposed=$((exposed + 1))
             fi
-        done
+        done <<< "$(docker ps --format "{{.Names}}: {{.Ports}}" 2>/dev/null)"
+        if [[ $exposed -gt 0 ]]; then
+            problems=$((problems + exposed))
+        fi
     fi
     
     # 5. التحقق من LLMNR (النمط السابق كان يفشل إن كان المجلد فارغاً فتظهر
     #    تحذير كاذبة "مفعّل")
     log_info "التحقق من LLMNR..."
-    if grep -rqs "LLMNR=no" /etc/systemd/resolved.conf.d/ 2>/dev/null \
-       || grep -qs "LLMNR=no" /etc/systemd/resolved.conf 2>/dev/null; then
+    local resolved_dir="${CARE_RESOLVED_CONF_D:-/etc/systemd/resolved.conf.d/}"
+    local resolved_conf="${CARE_RESOLVED_CONF:-/etc/systemd/resolved.conf}"
+    if grep -rqs "LLMNR=no" "$resolved_dir" 2>/dev/null \
+       || grep -qs "LLMNR=no" "$resolved_conf" 2>/dev/null; then
         log_ok "LLMNR معطل"
     else
         log_warn "LLMNR مفعّل (مخاطر أمنية) — أضف LLMNR=no في resolved.conf.d"
@@ -74,6 +143,9 @@ security_check() {
         log_err "تم اكتشاف $problems مشكلة"
     fi
     
+    # حارس الاتساق: رمز الخروج في bash محدود 0-255 والقيم فوقه تلتف
+    # (256 مشكلة → 0 → «سليم» زائفة) — نسقف قبل الإرجاع
+    (( problems > 255 )) && problems=255
     return $problems
 }
 
