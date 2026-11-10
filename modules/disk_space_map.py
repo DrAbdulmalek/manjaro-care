@@ -66,7 +66,15 @@ def build_space_map(
                     scanned += 1
                     try:
                         st = item.stat(follow_symlinks=False)
-                        if stat.S_ISLNK(st.st_mode) or st.st_dev != root_device:
+                        if stat.S_ISLNK(st.st_mode):
+                            skipped += 1
+                            continue
+                        # Mount boundaries are directories by definition, so the
+                        # cross-filesystem guard applies to directories only.
+                        # Comparing st_dev on regular files breaks on layered
+                        # filesystems (overlayfs in containers/CI) where each
+                        # file may report its own st_dev.
+                        if stat.S_ISDIR(st.st_mode) and st.st_dev != root_device:
                             skipped += 1
                             continue
                         if depth == 0:
