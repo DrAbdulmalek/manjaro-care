@@ -1,6 +1,6 @@
 # Maintainer: Dr. Abdulmalek Al-Husseini <dr@abdmalek.com>
 pkgname=manjaro-care
-pkgver=1.1.0
+pkgver=1.2.0
 pkgrel=1
 pkgdesc="Graphical system maintenance center for Manjaro/Arch Linux — click instead of typing commands (PyQt5)"
 arch=('any')
