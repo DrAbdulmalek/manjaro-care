@@ -12,6 +12,7 @@ from gui.boot_dialog import BootManagerDialog
 from gui.boot_sanity_dialog import BootSanityDialog
 from gui.btrfs_health_dialog import BtrfsHealthDialog
 from gui.dashboard_widget import DashboardDialog
+from gui.disk_space_map_dialog import DiskSpaceMapDialog
 from gui.file_shredder_dialog import FileShredderDialog
 from gui.firewall_dialog import FirewallManagerDialog
 from gui.font_toolkit_dialog import FontToolkitDialog

@@ -13,14 +13,11 @@ from modules.btrfs_snapper import BtrfsSnapperModule
 from modules.dashboard import DashboardModule
 from modules.disk_analyzer import DiskAnalyzerModule
 from modules.disk_optimizer import DiskOptimizerModule
+from modules.disk_space_map import DiskSpaceMapModule
 from modules.driver_manager import DriverManagerModule
-
-# 🆕 وحدات جديدة مستوحاة من أفضل برامج الويندوز 2026
 from modules.duplicate_finder import DuplicateFinderModule
 from modules.failed_services import FailedServicesModule
 from modules.file_shredder import FileShredderModule
-
-# وحدات Garuda-style
 from modules.firewall_manager import FirewallManagerModule
 from modules.flatpak_cleanup import FlatpakCleanupModule
 from modules.font_toolkit import FontToolkitModule
@@ -30,10 +27,9 @@ from modules.kernel_cleanup import KernelCleanupModule
 from modules.large_file_finder import LargeFileFinderModule
 from modules.locale_manager import LocaleManagerModule
 from modules.mirror_rank import MirrorRankModule
-
-# الوحدات الأصلية
 from modules.network_reset import NetworkResetModule
 from modules.one_click_maintenance import OneClickMaintenanceModule
+from modules.package_compatibility import PackageCompatibilityModule
 from modules.pacman_maintenance import PacmanMaintenanceModule
 from modules.pdf_toolkit import PdfToolkitModule
 from modules.performance_optimizer import PerformanceOptimizerModule
@@ -48,10 +44,9 @@ from modules.snapshot_before_update import SnapshotBeforeUpdateModule
 from modules.software_updater import SoftwareUpdaterModule
 from modules.startup_impact import StartupImpactModule
 from modules.startup_manager import StartupManagerModule
-
-# 🆕 وحدات CCleaner / TuneUp / ASC / IObit
 from modules.system_cleaner import SystemCleanerModule
 from modules.system_info import SystemInfoModule
+from modules.system_integrity import SystemIntegrityModule
 from modules.tcp_optimizer import TcpOptimizerModule
 from modules.thermal_power import ThermalPowerModule
 from modules.time_manager import TimeManagerModule
@@ -65,6 +60,7 @@ def get_all_modules():
         DashboardModule(),
         SystemInfoModule(),
         PacmanMaintenanceModule(),
+        PackageCompatibilityModule(),  # توافق الحزم مع إصدارات Manjaro (نافذة مخصصة)
         OneClickMaintenanceModule(),
         StartupImpactModule(),
         ReportExportModule(),  # تقرير منقّى (نافذة معاينة مخصصة)
@@ -118,11 +114,13 @@ def get_all_modules():
         TimeManagerModule(),
         NetworkResetModule(),
 
-        # العتاد والمعلومات
+        # العتاد والمعلومات والخرائط
         DriverManagerModule(),
         DiskAnalyzerModule(),
+        DiskSpaceMapModule(),  # خريطة مساحة القرص الهرمية (treemap غير متزامن)
         BtrfsSnapperModule(),
         BootSanityModule(),
+        SystemIntegrityModule(),  # سلامة النظام: التحقق من حزم الأساس
 
         # الخدمات والمستخدمين
         FailedServicesModule(),
