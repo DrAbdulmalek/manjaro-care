@@ -1,0 +1,4 @@
+ERROR: cannot access '/swap': Permission denied
+Label: none  uuid: 1f7f957e-bfe8-4ad5-8a02-e760d9db37c4
+	Total devices 1 FS bytes used 314.78GiB
+	devid    1 size 894.15GiB used 327.25GiB path /dev/sda2
