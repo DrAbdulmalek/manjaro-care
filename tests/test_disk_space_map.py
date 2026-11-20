@@ -44,8 +44,8 @@ def test_entry_limit_is_bounded(tmp_path: Path):
     assert result.scanned_entries == 5
     assert result.truncated is True
 
- 
- 
+
+
 def test_depth_limit_is_reported_as_partial(tmp_path: Path):
     current = tmp_path
     for index in range(4):
@@ -58,6 +58,7 @@ def test_depth_limit_is_reported_as_partial(tmp_path: Path):
 
 def test_treemap_tiles_partition_the_requested_area():
     from PyQt5.QtCore import QRectF
+
     from gui.disk_space_map_dialog import _treemap_rectangles
 
     entries = [

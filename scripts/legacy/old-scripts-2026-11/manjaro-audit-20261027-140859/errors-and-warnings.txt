@@ -1,0 +1,6 @@
+[WARNING] Command failed: Btrfs subvolumes (exit 1)
+[WARNING] Command failed: Orphan candidates (report only) (exit 1)
+[WARNING] Command failed: Detailed package file verification (exit 1)
+[WARNING] Command failed: Pacman cache size (exit 1)
+[WARNING] Command failed: EFI mount points (exit 1)
+Timeshift snapshot listing failed.
