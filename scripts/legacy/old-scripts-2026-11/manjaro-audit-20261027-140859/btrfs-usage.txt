@@ -1,0 +1,21 @@
+WARNING: cannot read detailed chunk info, per-device usage will not be shown, run as root
+Overall:
+    Device size:		 894.15GiB
+    Device allocated:		 327.25GiB
+    Device unallocated:		 566.90GiB
+    Device missing:		     0.00B
+    Device slack:		     0.00B
+    Used:			 322.38GiB
+    Free (estimated):		 570.91GiB	(min: 287.46GiB)
+    Free (statfs, df):		 570.91GiB
+    Data ratio:			      1.00
+    Metadata ratio:		      2.00
+    Global reserve:		 512.00MiB	(used: 0.00B)
+    Multiple profiles:		        no
+
+Data,single: Size:311.19GiB, Used:307.18GiB (98.71%)
+
+Metadata,DUP: Size:8.00GiB, Used:7.60GiB (95.04%)
+
+System,DUP: Size:32.00MiB, Used:64.00KiB (0.20%)
+

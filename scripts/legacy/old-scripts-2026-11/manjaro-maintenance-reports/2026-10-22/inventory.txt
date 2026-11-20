@@ -1,0 +1,43 @@
+=== INVENTORY - Manjaro Maintenance ===
+Date: 2026-10-22 16:39 UTC+03
+
+OS: Manjaro Linux rolling; Kernel 6.18.49-1-MANJARO; Host xorthomson-hpnotebook
+User: xorthomson uid1000, groups wheel docker kvm libvirt disk scanner power network
+sudo: requires password (no askpass in session) -> privileged commands BLOCKED
+
+HARDWARE: Intel i7-7500U (2C/4T); RAM 15Gi (4.6 used, 2.9 free, 10 avail); Swap zram0 4G (2 used); Load 6.63/4.81/3.17; Uptime 4h28m
+Battery: upower reports no power supply (BAT0 absent) -> status unknown
+
+STORAGE INTERNAL: /dev/sda 894.3G KINGSTON SA400S37960G (SATA SSD)
+  sda1 100M vfat EFI UUID=16FC-35C5 mounted at boot-efi dir
+  sda2 16M MSR
+  sda3 243.2G ntfs Windows UUID=7248094448090895 (not mounted)
+  sda4 838M ntfs recovery? UUID=94EC3488EC3466A0 (not mounted)
+  sda5 301.8G ntfs New Volume UUID=EAA8759BA87566CB (not mounted)
+  sda6 309.3G btrfs UUID=707efab5 mounted as root/home/varcache/varlog subvols @,@home,@cache,@log
+
+BTRFS: size 309.25GiB, allocated 309.25, unallocated 1MiB, used 300.12, free est 7.56GiB
+  Data single: 293.19 total, 285.63 used (97.4%)
+  Metadata DUP: 8.00 total, 7.24 used (90.6%)
+  Device stats: read/write/flush/corruption/generation io_errs all 0
+  Scrub: no stats available (never run); Error summary: no errors found
+  Subvolume list: BLOCKED (needs sudo)
+
+EXTERNAL: /dev/sdb 3.6T Extreme 55DD (USB) sdb1 exfat Extreme SSD UUID=26A4-1C48
+  mounted at /run/media/xorthomson/Extreme SSD : size 3.7T, used 845G, free 2.9T (23%)
+  Rescuezilla backup present under backup-xorthomson-hpnotebook-xorthomson/2026-06-01-0104-img-rescuezilla
+  ACTIVE PROCESS DETECTED: pid 93206 cat-ing split sda3 ntfs-ptcl-img.gz.* files
+
+VENTOY USB: /dev/sdc1 15G fuseblk at /mnt/ventoy-check (89% used)
+OPTICAL: sr0 PLDS DVD+/-RW DU-8A5LH
+zram0 4G swap (2G used)
+
+FAILED SERVICES: orthanc.service (start-limit-hit, exit 127); tlp.service (killed signal TERM during applying power save)
+
+JOURNAL ERRORS (boot): bluetoothd SDP record Host is down; rtlwifi AP off; wpa_supplicant bgscan/monitoring; kernel ses enclosure diagnostic page; atkbd unknown key 0xd8; many UFW BLOCK (normal)
+
+ENABLED UNITS: anydesk, avahi, bluetooth, cronie, cups, docker, libvirtd, lm_sensors, ModemManager, NetworkManager(+disp,+wait), ollama, orthanc, proton.VPN, sddm, smartd, sshd, timesyncd, tailscaled, tlp, tor, ufw, update_shutdown, update_startup, v2raya, veeamservice, saned.socket, snapd.socket, fstrim.timer, pamac-cleancache.timer, pamac-mirrorlist.timer
+
+SMART: smartctl 7.5. /dev/sda: 'Probable ATA device behind SAT layer'. -d sat -> 'Read Device Identity failed: Operation not permitted' (needs sudo). /dev/sdb: 'Unknown USB bridge', needs -d (needs sudo). FULL SMART BLOCKED without sudo.
+
+PACMAN: 7.1.0 / libalpm 16.0.1. Detailed queries pending.
