@@ -1,0 +1,55 @@
+{
+  "project": "manjaro-care",
+  "version": "1.0.0",
+  "harness": "Marathon Projects Harness v2.0",
+  "features": [
+    {
+      "id": "F001",
+      "title": "تبنّي Harness Engineering (العقد + البوابات + الذاكرة)",
+      "status": "done",
+      "priority": "high",
+      "depends_on": [],
+      "acceptance": "الملفات التسعة موجودة على فرع feat/harness-engineering؛ bash -n وpy_compile ناجحان؛ PR مسودة مفتوح — قرار الدمج للمالك"
+    },
+    {
+      "id": "F002",
+      "title": "تفعيل الذاكرة عبر الجلسات (Mem0 MCP)",
+      "status": "pending",
+      "priority": "medium",
+      "depends_on": [
+        "F001"
+      ],
+      "acceptance": "MEM0_API_KEY من البيئة + scripts/test_mem0_memory.py ينجح في الوضعين (REST وعبر الجلسات)"
+    },
+    {
+      "id": "F003",
+      "title": "ربط بوابة pre-push بـ scripts/verify.sh --quick",
+      "status": "pending",
+      "priority": "low",
+      "depends_on": [
+        "F001"
+      ],
+      "acceptance": "دفع مرفوض عند فشل البوابة (اختبار يدوي موثق في progress.md)"
+    },
+    {
+      "id": "F004",
+      "title": "اختبار مطابق لكل وحدة core جديدة (بوابة مراجعة)",
+      "status": "pending",
+      "priority": "medium",
+      "depends_on": [
+        "F001"
+      ],
+      "acceptance": "لا ملف جديد في core/ أو modules/ بلا اختبار مقابل في نفس الPR"
+    },
+    {
+      "id": "F005",
+      "title": "بناء PKGBUILD في CI",
+      "status": "pending",
+      "priority": "low",
+      "depends_on": [
+        "F001"
+      ],
+      "acceptance": "حزمة تُبنى بلا أخطاء في تشغيل CI"
+    }
+  ]
+}
