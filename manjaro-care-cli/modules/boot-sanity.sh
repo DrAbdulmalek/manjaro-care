@@ -97,6 +97,9 @@ boot_sanity_check() {
         log_err "$(printf "$MSG_BOOT_FOUND" "$problems")"
     fi
     
+    # حارس الاتساق: رمز الخروج في bash محدود 0-255 والقيم فوقه تلتف
+    # (256 مشكلة → 0 → «سليم» زائفة) — نسقف قبل الإرجاع
+    (( problems > 255 )) && problems=255
     return $problems
 }
 

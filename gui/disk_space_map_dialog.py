@@ -3,17 +3,25 @@
 """Asynchronous, read-only treemap view for the bounded home space inventory."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import QRectF, Qt
 from PyQt5.QtGui import QBrush, QColor, QPen
 from PyQt5.QtWidgets import (
-    QDialog, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView,
-    QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QVBoxLayout,
+    QDialog,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsTextItem,
+    QGraphicsView,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
 )
 
 from gui.workers import BusyCloseGuardMixin, FunctionWorker
 from modules.disk_space_map import SpaceEntry, SpaceMapResult, build_space_map, human_size
-
 
 _PALETTE = [
     QColor("#547a9e"), QColor("#638b70"), QColor("#9a7954"),
