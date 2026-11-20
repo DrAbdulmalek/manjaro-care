@@ -9,8 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.module_base import (
-    ApplyResult, MaintenanceModule, PreviewStep, RiskLevel, ScanFinding,
-    ScanResult, Severity,
+    ApplyResult,
+    MaintenanceModule,
+    PreviewStep,
+    RiskLevel,
+    ScanFinding,
+    ScanResult,
+    Severity,
 )
 
 _MAX_ENTRIES = 30_000
