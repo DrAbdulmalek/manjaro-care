@@ -1,7 +1,7 @@
 # أدوات تطوير واختبار manjaro-care — تثبيت بيئة CI محلياً:
 #   python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 pytest>=9.2.0
-ruff>=0.6
+ruff>=0.17.5
 # مطلوب لاختبارات واجهة الإلغاء (QThread/QProgressDialog).
 PyQt5>=5.15.11
 # needed so tests importing modules.registry work: ram_booster imports it at top level
