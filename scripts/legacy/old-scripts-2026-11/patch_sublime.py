@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 
+
 def main():
     # Locate binary
     if len(sys.argv) > 1:

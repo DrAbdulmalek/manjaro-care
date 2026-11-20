@@ -6,15 +6,14 @@ Manjaro Ultimate Control Center — مركز التحكم الشامل
 يجمع: إدارة النظام + تحويل ويندوز 11 + تسجيل التيرمينال + مراقبة حية
 """
 
-import tkinter as tk
-import customtkinter as ctk
 import os
 import subprocess
-import psutil
 import threading
-import json
 from datetime import datetime
 from pathlib import Path
+
+import customtkinter as ctk
+import psutil
 
 # ─── إعداد المظهر العام ──────────────────────────────────────────────────────
 ctk.set_appearance_mode("Dark")
@@ -48,8 +47,8 @@ class ManjaroUltimateApp(ctk.CTk):
 
         # الشعار
         self.logo_label = ctk.CTkLabel(
-            self.sidebar, 
-            text="🐧 التحكم الشامل", 
+            self.sidebar,
+            text="🐧 التحكم الشامل",
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color="#4ade80"
         )
@@ -67,8 +66,8 @@ class ManjaroUltimateApp(ctk.CTk):
 
         for idx, (text, frame_name) in enumerate(nav_buttons, start=1):
             btn = ctk.CTkButton(
-                self.sidebar, 
-                text=text, 
+                self.sidebar,
+                text=text,
                 command=lambda f=frame_name: self.show_frame(f),
                 fg_color="transparent",
                 border_width=1,
@@ -89,18 +88,18 @@ class ManjaroUltimateApp(ctk.CTk):
         # ─── شريط الحالة السفلي ──────────────────────────────────────────────
         self.status_bar = ctk.CTkFrame(self, height=40, fg_color="#1e293b")
         self.status_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=20, pady=(0, 10))
-        
+
         self.status_label = ctk.CTkLabel(
-            self.status_bar, 
-            text="✅ جاهز", 
+            self.status_bar,
+            text="✅ جاهز",
             font=ctk.CTkFont(size=11),
             text_color="#94a3b8"
         )
         self.status_label.pack(side="left", padx=15)
 
         self.clock_label = ctk.CTkLabel(
-            self.status_bar, 
-            text=f"🕐 {datetime.now().strftime('%H:%M:%S')}", 
+            self.status_bar,
+            text=f"🕐 {datetime.now().strftime('%H:%M:%S')}",
             font=ctk.CTkFont(size=11),
             text_color="#3b82f6"
         )
@@ -126,9 +125,9 @@ class ManjaroUltimateApp(ctk.CTk):
     def show_frame(self, frame_type):
         if self.current_frame:
             self.current_frame.destroy()
-        
+
         self.current_frame = ctk.CTkScrollableFrame(
-            self.main_view, 
+            self.main_view,
             fg_color="transparent",
             scrollbar_button_color="#334155",
             scrollbar_button_hover_color="#475569"
@@ -150,8 +149,8 @@ class ManjaroUltimateApp(ctk.CTk):
     # ─── لوحة المعلومات ──────────────────────────────────────────────────────
     def _render_dashboard(self):
         title = ctk.CTkLabel(
-            self.current_frame, 
-            text="📊 لوحة المعلومات الحية", 
+            self.current_frame,
+            text="📊 لوحة المعلومات الحية",
             font=ctk.CTkFont(size=20, weight="bold"),
             text_color="#4ade80"
         )
@@ -194,8 +193,8 @@ class ManjaroUltimateApp(ctk.CTk):
 
         for text, cmd, need_pkexec in quick_actions:
             ctk.CTkButton(
-                quick_frame, 
-                text=text, 
+                quick_frame,
+                text=text,
                 command=lambda c=cmd, p=need_pkexec: self._run_command(c, use_pkexec=p),
                 fg_color="#22c55e",
                 hover_color="#16a34a"
@@ -247,33 +246,33 @@ class ManjaroUltimateApp(ctk.CTk):
         control_frame.pack(fill="x", pady=10)
 
         ctk.CTkButton(
-            control_frame, 
-            text="▶️ بدء/استئناف تسجيل الجلسة", 
-            fg_color="#22c55e", 
+            control_frame,
+            text="▶️ بدء/استئناف تسجيل الجلسة",
+            fg_color="#22c55e",
             hover_color="#16a34a",
             command=lambda: self._run_command(f"mkdir -p {LOGS_DIR}/active && script -q -f {LOGS_DIR}/active/session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log", use_pkexec=False)
         ).pack(side="left", padx=10, pady=10)
 
         ctk.CTkButton(
-            control_frame, 
-            text="⏸️ إيقاف التسجيل مؤقتاً", 
-            fg_color="#f59e0b", 
+            control_frame,
+            text="⏸️ إيقاف التسجيل مؤقتاً",
+            fg_color="#f59e0b",
             hover_color="#d97706",
             command=lambda: self._run_command("pkill -f 'script -q -f'", use_pkexec=False)
         ).pack(side="left", padx=10, pady=10)
 
         ctk.CTkButton(
-            control_frame, 
-            text="📚 دمج وتصدير السجلات الشامل", 
-            fg_color="#3b82f6", 
+            control_frame,
+            text="📚 دمج وتصدير السجلات الشامل",
+            fg_color="#3b82f6",
             hover_color="#2563eb",
             command=lambda: self._merge_logs()
         ).pack(side="left", padx=10, pady=10)
 
         ctk.CTkButton(
-            control_frame, 
-            text="🗑️ تنظيف السجلات المؤقتة", 
-            fg_color="#ef4444", 
+            control_frame,
+            text="🗑️ تنظيف السجلات المؤقتة",
+            fg_color="#ef4444",
             hover_color="#dc2626",
             command=lambda: self._run_command(f"rm -rf {LOGS_DIR}/active/*.log {LOGS_DIR}/cloud_ready/*.gz 2>/dev/null", use_pkexec=False)
         ).pack(side="left", padx=10, pady=10)
@@ -337,8 +336,8 @@ class ManjaroUltimateApp(ctk.CTk):
     # ─── دوال مساعدة ────────────────────────────────────────────────────────
     def _create_section_title(self, text):
         label = ctk.CTkLabel(
-            self.current_frame, 
-            text=text, 
+            self.current_frame,
+            text=text,
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color="#4ade80"
         )
@@ -346,8 +345,8 @@ class ManjaroUltimateApp(ctk.CTk):
 
     def _create_action_button(self, text, command, need_pkexec=False, color="#22c55e"):
         btn = ctk.CTkButton(
-            self.current_frame, 
-            text=text, 
+            self.current_frame,
+            text=text,
             command=lambda c=command, p=need_pkexec: self._run_command(c, use_pkexec=p),
             fg_color=color,
             hover_color=self._darken_color(color)
@@ -374,10 +373,10 @@ class ManjaroUltimateApp(ctk.CTk):
                     cmd = f"pkexec {cmd}"
 
                 process = subprocess.Popen(
-                    cmd, 
-                    shell=True, 
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE, 
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     env={**os.environ, "TERM": "xterm"}
                 )
@@ -407,7 +406,7 @@ class ManjaroUltimateApp(ctk.CTk):
             try:
                 self._log("🔄 جاري دمج السجلات...", "#60a5fa")
                 output_file = LOGS_DIR / f"merged_{datetime.now().strftime('%Y%m%d')}.log"
-                
+
                 with open(output_file, 'w', encoding='utf-8') as outfile:
                     for subdir in ['active', 'backup']:
                         dir_path = LOGS_DIR / subdir
