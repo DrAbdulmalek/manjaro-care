@@ -1,4 +1,73 @@
-# Manjaro Care
+# 🛠️ Manjaro Care — صيانة مانجارو بنقرة بدل أمر
+
+*A comprehensive maintenance suite for Manjaro Linux — diagnose and fix common issues with a single command.*
+
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/DrAbdulmalek/manjaro-care/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Languages](https://img.shields.io/badge/languages-Arabic%20%7C%20English-orange.svg)](README.md)
+[![Bash CI](https://github.com/DrAbdulmalek/manjaro-care/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![Python tests](https://github.com/DrAbdulmalek/manjaro-care/actions/workflows/tests.yml/badge.svg)](.github/workflows/tests.yml)
+
+---
+
+## 🧩 المكونات الثلاثة / The three components
+
+| المكوّن | ما هو | لمن |
+|---|---|---|
+| **`mcare`** (داخل `manjaro-care-cli/`) | أداة طرفية سريعة: فحص/إصلاح/تنظيف/إعادة ضبط الشبكة — ثنائية اللغة (عربي/إنجليزي) | مستخدم الطرفية، السيرفرات، الجدولة عبر systemd timer |
+| **واجهة رسومية** (داخل `modules/` + `gui/`) | 49 وحدة صيانة بواجهة PyQt5 بفلسفة "فحص → معاينة → تطبيق" | من يفضّل النقر على كتابة الأوامر (قادمون من Windows) |
+| **`bash-tool/`** | أداة طرفية مع أرشفة تقارير على مستودع GitHub خاص | من يريد سجل صيانة موثّقاً وسحابياً |
+
+## 🚀 ما الجديد في الإصدار v1.1.1؟ / What's new
+
+- ✅ **إصلاح حاسم لوحدة الشبكة (`network-reset`)** — القصة الكاملة في [manjaro-care-cli/CHANGELOG.md](manjaro-care-cli/CHANGELOG.md):
+  - إصلاح انهيار السكربت عند أول مشكلة بسبب `set -e` و`((problems++))`.
+  - منع حذف شبكات الواي فاي المفتوحة السليمة عن طريق الخطأ.
+  - إعادة تفعيل الراديو (`nmcli radio wifi on`) بعد إعادة الضبط — بدونها لا يتصل الواي فاي.
+  - تصحيح مسارات DHCP لتتوافق مع Manjaro (`/var/lib/dhcpcd`).
+  - فك تهريب `:` في أسماء شبكات الواي فاي.
+- ✅ **دعم ثنائي اللغة (عربي/إنجليزي)** في `mcare` عبر متغير البيئة `APP_LANG` — العربية الافتراضية.
+- ✅ **تثبيت تلقائي بضغطة واحدة** عبر `curl` (انظر أدناه) — يثبّت الأمر باسم `mcare` كي لا يتعارض مع واجهة GUI في `/usr/bin/manjaro-care`.
+- ✅ **CI للسكريبتات**: ShellCheck + التحقق النحوي + اختبار دخان ثنائي اللغة على كل تحديث (`.github/workflows/ci.yml`).
+- ✅ إصلاح عرض الألوان في المساعدة، ونمط `case` مكرر في `ask_yes`، و`grep -c` المزدوج في btrfs.
+
+## 📦 التثبيت السريع للطرفية / Quick install (CLI)
+
+### الطريقة 1: التثبيت التلقائي (موصى به) / Automatic (recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/DrAbdulmalek/manjaro-care/main/manjaro-care-cli/install.sh | sudo bash
+```
+
+### الطريقة 2: اليدوية / Manual
+
+```bash
+git clone https://github.com/DrAbdulmalek/manjaro-care.git
+cd manjaro-care/manjaro-care-cli
+sudo ./install.sh
+```
+
+## 🚀 الاستخدام / Usage
+
+اللغة الافتراضية عربية. للإنجليزية: `APP_LANG=en` قبل الأمر.
+*The default language is Arabic. For English, prefix commands with `APP_LANG=en`.*
+
+| الوصف / Description | عربي (افتراضي) | English |
+| :--- | :--- | :--- |
+| فحص شامل / Full check | `sudo mcare doctor` | `sudo APP_LANG=en mcare doctor` |
+| إصلاح تلقائي / Auto-fix | `sudo mcare fix` | `sudo APP_LANG=en mcare fix` |
+| إعادة ضبط الشبكة / Reset network | `sudo mcare network reset` | `sudo APP_LANG=en mcare network reset` |
+| فحص الإقلاع / Boot check | `sudo mcare boot check` | `sudo APP_LANG=en mcare boot check` |
+| تنظيف النظام / Cleanup | `sudo mcare clean` | `sudo APP_LANG=en mcare clean` |
+| إخراج JSON / JSON output | `sudo mcare -j doctor` | `sudo APP_LANG=en mcare -j doctor` |
+| المساعدة / Help | `mcare --help` | `APP_LANG=en mcare --help` |
+
+> 💡 يمكنك تصدير اللغة مرة واحدة في الجلسة: `export APP_LANG=en`
+> *Export the language once per session to avoid repeating it.*
+
+---
+
+# 📖 التطبيق الرسومي (manjaro-care) — التوثيق التفصيلي
 
 مركز صيانة رسومي لمانجارو/آرتش، بفلسفة نقرة-بدل-أمر — يهدف لإعطاء
 مستخدمي لينكس القادمين من Windows تجربة مشابهة لأدوات مثل TuneUp
@@ -103,7 +172,12 @@ manjaro-care --dry-run
 | `btrfs_health` | صحة btrfs: scrub/device stats/SMART/fstrim/أبطأ خدمات إقلاع + إجراءان اختياريان بمعاينة وتأكيد منفصلين | آمن |
 | `boot_sanity` | فحص سلامة الإقلاع على btrfs (تكامل manjaro-doctor + fallback أصلي، إصلاح بنسخة احتياطية) | متوسط |
 | `update_check` | إخبارية: ملفات .pacnew مع أزرار الفروق، تحذير عدم المزامنة والتحديث الجزئي، خدمات فاشلة، أخبار مانجارو | آمن (إخباري) |
-| `failed_services` | يكتشف خدمات systemd الفاشلة ويعيد تشغيلها | آمن |
+| `failed_services` | كشف خدمات systemd الفاشلة وعرض أوامر فحص السجل — دون إعادة تشغيل جماعية | آمن (قراءة فقط) |
+| `thermal_power` | حرارة CPU، المراوح، أعلى العمليات استهلاكاً، governor/EPP/Turbo، TLP وملف منصة العتاد وتعارض مديري الطاقة | آمن (قراءة فقط) |
+| `service_audit` | تدقيق update_shutdown.service المتقاعدة وبقاياها دون حذف أو تعطيل | آمن (قراءة فقط) |
+| `system_integrity` | تدقيق مصدر الجذر وfstab وصياغة GRUB ومسارات mkinitcpio وتفاصيل Btrfs — قراءة فقط | آمن |
+| `package_compatibility` | اتساق pacman والحزم الأجنبية ومؤشرات checkrebuild بعد تغيّر المكتبات — قراءة فقط | آمن |
+| `disk_space_map` | خريطة treemap هرمية لمساحة القرص: قرص ← مجلد ← ملفات، تمييز الكاش عن بيانات المستخدم — دون أي حذف | آمن (إخباري) |
 | `user_manager` | إدارة المستخدمين والمجموعات | متوسط |
 | `printer_manager` | حالة الطابعات (CUPS) | آمن |
 
@@ -216,3 +290,49 @@ sudo bash uninstall.sh
 ## الترخيص
 
 MIT — مشروع مفتوح المصدر بالكامل.
+
+
+## 🩺 مركز صحة النظام الموحد / Unified System Health Center
+
+يعرض ملخصاً موحداً لنتائج الفحص الشامل ضمن مجموعات واضحة:
+- الإقلاع والتخزين وBtrfs وملفات الإقلاع.
+- الحزم وقاعدة pacman والتوافق مع المكتبات.
+- الحرارة وإدارة الطاقة وCPU وTLP.
+- الخدمات الفاشلة وبقايا الوحدات المخصصة.
+- الأمان والشبكة والأداء والفحوص العامة.
+
+**مهم:** المركز لا يعيد تشغيل الفحوص؛ بل يجمع نتائج `run_full_scan` نفسها، لذلك لا يضاعف الضغط على الجهاز ولا ينفذ فحصاً ثانياً. يمكن توسيع كل قسم لرؤية النتيجة والتفاصيل. أخطاء الفحص أو نقص الصلاحيات تظهر كـ «غير مكتمل/معلومة» ولا تُعرض كأن النظام سليم.
+
+### ضوابط السلامة
+- الفحوص الجديدة للحرارة والطاقة والخدمات وتوافق الحزم وسلامة النظام للقراءة فقط.
+- لا تعديل تلقائي لـ GRUB أو fstab أو initramfs أو Btrfs أو snapshots.
+- لا تحديث أو حذف أو إعادة بناء للحزم، ولا إعادة تشغيل جماعية للخدمات.
+- لا تغيير TLP أو CPU governor أو EPP أو Turbo أو BIOS.
+- النتائج تصف الأدلة المتاحة ولا تستنتج أن غياب قراءة حساس أو أداة يعني وجود عطل.
+
+## 🧹 تحسينات اكتشاف الملفات الآمن المستوحاة من Cleanly
+
+تمت مراجعة أفكار مشروع Cleanly وانتقاء ما يناسب Manjaro Care دون نسخ شيفرته:
+- فحص الملفات المكررة بمقارنة الحجم ثم SHA-256، مع قراءة مجزأة لا تستهلك الذاكرة بحجم الملف.
+- تجاهل الروابط الرمزية وعدم اتباعها أثناء استعراض المجلدات أو فتح الملفات.
+- استبعاد مجلدات الكاش والاعتماديات وبيئات التطوير من بحث الملفات الشخصية.
+- حدود واضحة لعدد الملفات ومجموعات التكرار لتفادي فحص غير محدود.
+- عدم اعتبار hardlinks نسخاً مكررة قابلة لاستعادة مساحة إضافية.
+- وحدة المكررات أصبحت للقراءة فقط: لا حذف نهائي ولا نقل تلقائي ولا اختيار نسخة للاحتفاظ بها نيابة عن المستخدم.
+
+- تطبيق سياسة تنظيف محافظة في System Cleaner: السماح فقط بـ paccache للاحتفاظ بآخر نسختين وjournal vacuum لآخر 7 أيام بعد الموافقة؛ إبقاء /tmp وسلة المحذوفات وبيانات Flatpak وكاش المستخدم للمراجعة فقط، مع فحص أحجام لا يتبع الروابط الرمزية.
+
+**ملاحظة الترخيص:** مستودع Cleanly لا يعلن ترخيصاً قابلاً لإعادة الاستخدام (license: null وUNLICENSED في package metadata)، لذلك لم تُنسخ منه أي شيفرة أو أصول. هذه إضافات مستقلة مبنية على متطلبات Manjaro Care. تغطي الاختبارات حدود عدم اتباع الروابط الرمزية، استثناء hardlinks، حد الفحص، وعدم حذف ملفات المستخدم.
+
+
+## 🗺️ خريطة مساحة القرص (Disk Space Map)
+
+تضيف واجهة treemap معلوماتية لمجلد المنزل:
+- تجميع الحجم حسب العناصر المباشرة داخل مجلد المنزل، مع إمكانية رؤية القائمة التفصيلية.
+- خريطة Treemap مستطيلة حقيقية، مساحة كل عنصر فيها متناسبة مع حجمه، مع عرض الحجم المقروء لكل عنصر.
+- فحص غير متزامن في خيط خلفي، محدود بحد أقصى 30,000 عنصر وعمق 6 مستويات؛ تظهر رسالة صريحة عندما تكون النتائج جزئية.
+- استخدام `lstat` وعمليات `scandir` دون اتباع الروابط الرمزية أو عبور أنظمة ملفات أخرى.
+- لا قراءة لمحتوى الملفات، ولا حذف أو نقل أو تعديل أو رفع بيانات إلى خدمة خارجية.
+- تبقى نتائج الخريطة تقديرية: لا تحسب hardlinks كمساحة فريدة، وقد تختلف عن المساحة الفعلية بسبب sparse files وBtrfs snapshots وmetadata وmount boundaries.
+
+هذه الخريطة مكملة لـ `disk_analyzer` و`large_file_finder` وليست بديلاً عنهما؛ لا توفر أي زر حذف مباشر.

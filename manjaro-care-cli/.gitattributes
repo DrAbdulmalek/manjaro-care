@@ -1,0 +1,16 @@
+# معالجة الأسطر
+* text=auto
+
+# السكريبتات
+*.sh text eol=lf
+manjaro-care-cli text eol=lf
+
+# الملفات الثنائية
+*.png binary
+*.jpg binary
+*.gif binary
+
+# ملفات النصوص
+*.md text eol=lf
+*.txt text eol=lf
+LICENSE text eol=lf

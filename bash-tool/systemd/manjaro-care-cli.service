@@ -1,0 +1,9 @@
+[Unit]
+Description=manjaro-care read-only health check (doctor)
+
+[Service]
+Type=oneshot
+# وحدة مستخدم (لا root): تشغّل doctor فقط. الإصلاح والتحديث تبقى يدوية عمداً —
+# ترقية المكتبات دون إشراف هي ما كسر Orthanc أصلاً.
+ExecStart=%h/.local/bin/manjaro-care-cli doctor --auto --no-color
+TimeoutStartSec=30min

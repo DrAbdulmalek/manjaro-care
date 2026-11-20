@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""modules/duplicate_finder.py — البحث عن الملفات المكررة."""
+"""بحث آمن عن الملفات المكررة؛ لا يحذف ولا ينقل أي ملف."""
 from __future__ import annotations
 
 import hashlib
 import os
+import stat
 from collections import defaultdict
 from pathlib import Path
 
@@ -21,142 +22,216 @@ from core.module_base import (
 
 log = get_logger("duplicate_finder")
 
+_MIN_SIZE = 1024 * 1024
+_MAX_FILES = 200_000
+_MAX_GROUPS = 200
+_BLOCK_SIZE = 1024 * 1024
+_SKIP_DIRS = {
+    ".cache", ".git", ".hg", ".svn", "__pycache__", ".venv",
+    "node_modules", ".local/share/trash", ".trash",
+}
 
-def _hash_file(path: Path, block_size=65536) -> str:
-    hasher = hashlib.md5()
+
+def _hash_file(path: Path, block_size: int = _BLOCK_SIZE) -> str:
+    """SHA-256 using O_NOFOLLOW and inode verification to avoid symlink races."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    fd = None
     try:
-        with open(path, "rb") as f:
-            while chunk := f.read(block_size):
-                hasher.update(chunk)
-        return hasher.hexdigest()
-    except (PermissionError, OSError):
+        fd = os.open(path, flags)
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            return ""
+        digest = hashlib.sha256()
+        with os.fdopen(fd, "rb", closefd=True) as stream:
+            fd = None
+            while chunk := stream.read(block_size):
+                digest.update(chunk)
+            after = os.fstat(stream.fileno())
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns
+        ):
+            return ""
+        return digest.hexdigest()
+    except (OSError, ValueError):
         return ""
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
-def _find_duplicates(paths: list[str], min_size: int = 1024) -> dict[str, list[str]]:
-    """يجد الملفات المكررة حسب الـ hash."""
-    size_map = defaultdict(list)
-
-    for base in paths:
-        base_path = Path(base).expanduser()
-        if not base_path.exists():
+def _walk_files(paths: list[str], max_files: int = _MAX_FILES) -> list[tuple[Path, int, tuple[int, int]]]:
+    """Iterative lstat-based walk. Never follows symlinks; bounded by max_files."""
+    found: list[tuple[Path, int, tuple[int, int]]] = []
+    visited_dirs: set[tuple[int, int]] = set()
+    stack: list[Path] = []
+    for raw in paths:
+        base = Path(raw).expanduser()
+        try:
+            st = base.lstat()
+        except OSError:
             continue
-        for root, dirs, files in os.walk(base_path):
-            # تجاهل المسارات المخفية
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            for fname in files:
-                fpath = Path(root) / fname
-                try:
-                    fsize = fpath.stat().st_size
-                    if fsize < min_size:
+        if stat.S_ISDIR(st.st_mode):
+            stack.append(base)
+
+    while stack and len(found) < max_files:
+        current = stack.pop()
+        try:
+            dst = current.lstat()
+            if not stat.S_ISDIR(dst.st_mode):
+                continue
+            identity = (dst.st_dev, dst.st_ino)
+            if identity in visited_dirs:
+                continue
+            visited_dirs.add(identity)
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    if len(found) >= max_files:
+                        break
+                    try:
+                        est = entry.stat(follow_symlinks=False)
+                    except OSError:
                         continue
-                    size_map[fsize].append(str(fpath))
-                except (OSError, PermissionError):
-                    continue
-
-    # الآن نحسب الـ hash للملفات التي لها نفس الحجم
-    duplicates = defaultdict(list)
-    for _fsize, file_list in size_map.items():
-        if len(file_list) < 2:
+                    if stat.S_ISLNK(est.st_mode):
+                        continue
+                    child = Path(entry.path)
+                    if stat.S_ISDIR(est.st_mode):
+                        if entry.name.startswith(".") or entry.name.lower() in _SKIP_DIRS:
+                            continue
+                        stack.append(child)
+                    elif stat.S_ISREG(est.st_mode) and est.st_size >= _MIN_SIZE:
+                        found.append((child, est.st_size, (est.st_dev, est.st_ino)))
+        except OSError:
             continue
-        hashes = defaultdict(list)
-        for fpath in file_list:
-            h = _hash_file(Path(fpath))
-            if h:
-                hashes[h].append(fpath)
-        for h, files in hashes.items():
-            if len(files) >= 2:
-                duplicates[h] = files
+    return found
 
-    return dict(duplicates)
+
+def _find_duplicates(
+    paths: list[str],
+    min_size: int = _MIN_SIZE,
+    max_files: int = _MAX_FILES,
+) -> dict[str, list[str]]:
+    """Group exact byte-identical files; hardlinks and symlinks are not counted."""
+    by_size: dict[int, list[tuple[Path, tuple[int, int]]]] = defaultdict(list)
+    for path, size, inode in _walk_files(paths, max_files=max_files):
+        if size >= min_size:
+            by_size[size].append((path, inode))
+
+    duplicates: dict[str, list[str]] = {}
+    seen_inodes: set[tuple[int, int]] = set()
+    for _size, candidates in by_size.items():
+        if len(candidates) < 2:
+            continue
+        hashes: dict[str, list[str]] = defaultdict(list)
+        for path, inode in candidates:
+            if inode in seen_inodes:
+                continue
+            digest = _hash_file(path)
+            if digest:
+                hashes[digest].append(str(path))
+                seen_inodes.add(inode)
+        for digest, matches in hashes.items():
+            if len(matches) > 1:
+                duplicates[digest] = matches
+                if len(duplicates) >= _MAX_GROUPS:
+                    return duplicates
+    return duplicates
 
 
 class DuplicateFinderModule(MaintenanceModule):
-    name = "البحث عن الملفات المكررة 📑"
+    name = "البحث عن الملفات المكررة"
     slug = "duplicate_finder"
-    description = "يجد الملفات المكررة في مجلدات المستخدم لتحرير المساحة"
+    description = "يعثر على النسخ المتطابقة في مجلدات المستخدم؛ الفحص للقراءة فقط ولا يحذف الملفات"
     needs_root = False
     risk_level = RiskLevel.SAFE
     icon = "edit-find"
 
-    def scan(self):
-        findings = []
-        # نبحث في المسارات الشائعة
+    def scan(self) -> ScanResult:
         search_paths = [
-            "~/Downloads",
-            "~/Documents",
-            "~/Pictures",
-            "~/Music",
-            "~/Videos",
-            "~/.cache",
+            "~/Downloads", "~/Documents", "~/Pictures",
+            "~/Music", "~/Videos", "~/Desktop",
         ]
+        candidates = _walk_files(search_paths)
+        by_size: dict[int, list[tuple[Path, tuple[int, int]]]] = defaultdict(list)
+        for path, size, inode in candidates:
+            by_size[size].append((path, inode))
 
-        dups = _find_duplicates(search_paths, min_size=1024)
-        total_dups = 0
-        total_size = 0
-
-        for _h, files in dups.items():
-            # نحسب الحجم المهدرة (الملفات الزائدة)
-            try:
-                fsize = Path(files[0]).stat().st_size
-                wasted = fsize * (len(files) - 1)
-                total_size += wasted
-                total_dups += len(files) - 1
-            except OSError:
+        duplicates: dict[str, list[str]] = {}
+        wasted_bytes = 0
+        seen_inodes: set[tuple[int, int]] = set()
+        for _size, group in by_size.items():
+            if len(group) < 2:
                 continue
+            hashes: dict[str, list[str]] = defaultdict(list)
+            for path, inode in group:
+                if inode in seen_inodes:
+                    continue
+                digest = _hash_file(path)
+                if digest:
+                    hashes[digest].append(str(path))
+                    seen_inodes.add(inode)
+            for digest, matches in hashes.items():
+                if len(matches) > 1:
+                    duplicates[digest] = matches
+                    wasted_bytes += _size * (len(matches) - 1)
+                    if len(duplicates) >= _MAX_GROUPS:
+                        break
+            if len(duplicates) >= _MAX_GROUPS:
+                break
 
-        if total_dups > 0:
-            findings.append(ScanFinding(
-                title=f"{total_dups} ملف مكرر ({self._human_size(total_size)} قابلة للتحرير)",
-                detail=f"تم العثور على {len(dups)} مجموعات مكررة في مجلدات المستخدم.",
-                severity=Severity.INFO,
-                actionable=True,
-                raw_value=dups,
-            ))
+        duplicate_count = sum(len(files) - 1 for files in duplicates.values())
+        truncated = len(candidates) >= _MAX_FILES
+        if duplicate_count:
+            lines = []
+            for index, files in enumerate(duplicates.values(), start=1):
+                lines.append(f"المجموعة {index}:")
+                lines.extend(f"  {item}" for item in files[:8])
+                if len(files) > 8:
+                    lines.append(f"  ... و{len(files) - 8} نسخ أخرى")
+            detail = (
+                f"المجموعات: {len(duplicates)} | النسخ الزائدة: {duplicate_count} | "
+                f"المساحة النظرية: {self._human_size(wasted_bytes)}\n"
+                "هذه ملفات شخصية محتملة؛ راجع كل نسخة يدوياً قبل أي نقل أو حذف.\n"
+                + "\n".join(lines)
+            )
+            severity = Severity.INFO
         else:
-            findings.append(ScanFinding(
-                title="لا ملفات مكررة",
-                detail="لم يُعثر على تكرارات كبيرة.",
-                severity=Severity.OK,
-                actionable=False,
-            ))
+            detail = "لم يُعثر على ملفات متطابقة ضمن المسارات والحدود المفحوصة."
+            severity = Severity.OK
+        if truncated:
+            detail += f"\nتنبيه: بلغ الفحص حد { _MAX_FILES } ملف؛ النتائج جزئية."
 
-        return ScanResult(module_name=self.name, findings=findings)
+        finding = ScanFinding(
+            title=(
+                f"{duplicate_count} نسخة مكررة ضمن {len(duplicates)} مجموعات "
+                f"({self._human_size(wasted_bytes)} مساحة نظرية)"
+                if duplicate_count else "لا توجد ملفات مكررة مؤكدة"
+            ),
+            detail=detail,
+            severity=severity,
+            actionable=False,
+            raw_value={"groups": duplicates, "truncated": truncated},
+        )
+        return ScanResult(module_name=self.name, findings=[finding])
 
-    def preview(self):
-        return [PreviewStep(description="حذف النسخ الزائدة من الملفات المكررة")]
+    def preview(self) -> list[PreviewStep]:
+        return [PreviewStep(
+            description=(
+                "عرض معلومات فقط. لا توجد عملية حذف أو نقل تلقائي للملفات الشخصية. "
+                "افتح المسارات وراجع كل نسخة بنفسك."
+            )
+        )]
 
-    def apply(self):
-        result = self.scan()
-        dups = result.findings[0].raw_value if result.findings and result.findings[0].raw_value else {}
-        deleted = 0
-        freed = 0
-        logs = []
-
-        for _h, files in dups.items():
-            # نحتفظ بالأقدم ونحذف الباقي
-            sorted_files = sorted(files, key=lambda p: Path(p).stat().st_mtime)
-            for to_delete in sorted_files[1:]:
-                try:
-                    p = Path(to_delete)
-                    size = p.stat().st_size
-                    p.unlink()
-                    deleted += 1
-                    freed += size
-                    logs.append(f"🗑️ {to_delete}")
-                except Exception as exc:
-                    logs.append(f"❌ فشل حذف {to_delete}: {exc}")
-
+    def apply(self) -> ApplyResult:
         return ApplyResult(
             success=True,
-            message=f"تم حذف {deleted} ملف مكرر ({self._human_size(freed)} محررة)",
-            log_output="\n".join(logs),
+            message="وحدة البحث عن المكررات للقراءة فقط؛ لم يُحذف أو يُنقل أو يُعدّل أي ملف.",
         )
 
     @staticmethod
     def _human_size(size: int) -> str:
-        for unit in ["B", "KB", "MB", "GB"]:
-            if size < 1024:
-                return f"{size:.1f} {unit}"
-            size /= 1024
-        return f"{size:.1f} TB"
+        value = float(size)
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if value < 1024:
+                return f"{value:.1f} {unit}"
+            value /= 1024
+        return f"{value:.1f} PB"
