@@ -14,6 +14,7 @@ from gui.btrfs_health_dialog import BtrfsHealthDialog
 from gui.dashboard_widget import DashboardDialog
 from gui.file_shredder_dialog import FileShredderDialog
 from gui.firewall_dialog import FirewallManagerDialog
+from gui.firmware_overview_dialog import FirmwareOverviewDialog
 from gui.font_toolkit_dialog import FontToolkitDialog
 from gui.game_mode_dialog import GameModeDialog
 from gui.oneclick_dialog import OneClickMaintenanceDialog
@@ -43,6 +44,7 @@ _REGISTRY: dict[str, Callable[..., QDialog]] = {
     "update_check": UpdateCheckDialog,
     "btrfs_health": BtrfsHealthDialog,
     "report_export": ReportExportDialog,
+    "firmware_overview": FirmwareOverviewDialog,
 }
 
 def get_custom_dialog(slug: str) -> Callable[..., QDialog] | None:
