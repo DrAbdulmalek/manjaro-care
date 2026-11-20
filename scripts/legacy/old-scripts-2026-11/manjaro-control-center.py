@@ -102,7 +102,7 @@ class ManjaroControlCenter:
             info_display.insert('1.0', info_text)
             info_display.config(state='disabled')
             info_display.pack(fill='both', expand=True)
-        except:
+        except Exception:
             ttk.Label(info_frame, text="تعذر جلب المعلومات").pack()
 
         return frame
@@ -124,7 +124,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in updates:
-            ttk.Button(update_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(update_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         # خدمات
         service_frame = ttk.LabelFrame(frame, text="⚙️ الخدمات", padding=10)
@@ -138,7 +138,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in services:
-            ttk.Button(service_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(service_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         return frame
 
@@ -159,7 +159,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in firewall_cmds:
-            ttk.Button(firewall_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(firewall_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         # أمان
         security_frame = ttk.LabelFrame(frame, text="🔐 أدوات الأمان", padding=10)
@@ -173,7 +173,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in security_cmds:
-            ttk.Button(security_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(security_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         return frame
 
@@ -193,7 +193,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in theme_cmds:
-            ttk.Button(theme_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(theme_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         # سطح المكتب
         desktop_frame = ttk.LabelFrame(frame, text="🖥️ سطح المكتب", padding=10)
@@ -205,7 +205,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in desktop_cmds:
-            ttk.Button(desktop_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(desktop_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         return frame
 
@@ -227,7 +227,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in tools:
-            ttk.Button(tools_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(tools_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         # إصلاحات
         fix_frame = ttk.LabelFrame(frame, text="🔧 إصلاحات شائعة", padding=10)
@@ -242,7 +242,7 @@ class ManjaroControlCenter:
         ]
 
         for text, cmd in fixes:
-            ttk.Button(fix_frame, text=text, command=lambda c=cmd: self.run_command(c, text)).pack(fill='x', pady=2)
+            ttk.Button(fix_frame, text=text, command=lambda c=cmd, t=text: self.run_command(c, t)).pack(fill='x', pady=2)
 
         return frame
 

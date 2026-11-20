@@ -288,7 +288,7 @@ class ManjaroUltimateApp(ctk.CTk):
             active_count = len(list((LOGS_DIR / "active").glob("*.log")))
             backup_count = len(list((LOGS_DIR / "backup").glob("*.gz"))) + len(list((LOGS_DIR / "backup").glob("*.log")))
             total_size = subprocess.run(f"du -sh {LOGS_DIR} 2>/dev/null | cut -f1", shell=True, capture_output=True, text=True).stdout.strip() or "0B"
-        except:
+        except Exception:
             active_count = backup_count = 0
             total_size = "غير متاح"
 
@@ -358,12 +358,12 @@ class ManjaroUltimateApp(ctk.CTk):
         try:
             r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
             return f"#{max(0, r-30):02x}{max(0, g-30):02x}{max(0, b-30):02x}"
-        except:
+        except Exception:
             return hex_color
 
     def _run_command(self, cmd, use_pkexec=False):
         """تنفيذ أمر في خيط منفصل مع معالجة الصلاحيات"""
-        def thread_run():
+        def thread_run(cmd=cmd):
             try:
                 self._log(f"⚙️ جاري: {cmd[:80]}...", "#60a5fa")
                 self.status_label.configure(text="⏳ جاري التنفيذ...", text_color="#f59e0b")
@@ -421,7 +421,7 @@ class ManjaroUltimateApp(ctk.CTk):
                                     with gzip.open(gz_file, 'rt', encoding='utf-8', errors='ignore') as infile:
                                         outfile.write(f"\n# === {gz_file.name} ===\n")
                                         outfile.write(infile.read())
-                                except:
+                                except Exception:
                                     pass
 
                 size = subprocess.run(f"du -h {output_file} | cut -f1", shell=True, capture_output=True, text=True).stdout.strip()
@@ -463,7 +463,7 @@ class ManjaroUltimateApp(ctk.CTk):
                         self.stats_labels["ram"].configure(text=f"{ram:.1f}%", text_color="#f59e0b" if ram > 85 else "#3b82f6")
                         self.stats_labels["disk"].configure(text=f"{disk:.1f}%", text_color="#f59e0b" if disk > 90 else "#22c55e")
                         self.stats_labels["uptime"].configure(text=f"{hours}h {minutes}m")
-                except:
+                except Exception:
                     pass
                 threading.Event().wait(5)
 
