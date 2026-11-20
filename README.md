@@ -173,16 +173,11 @@ manjaro-care --dry-run
 | `boot_sanity` | فحص سلامة الإقلاع على btrfs (تكامل manjaro-doctor + fallback أصلي، إصلاح بنسخة احتياطية) | متوسط |
 | `update_check` | إخبارية: ملفات .pacnew مع أزرار الفروق، تحذير عدم المزامنة والتحديث الجزئي، خدمات فاشلة، أخبار مانجارو | آمن (إخباري) |
 | `failed_services` | كشف خدمات systemd الفاشلة وعرض أوامر فحص السجل — دون إعادة تشغيل جماعية | آمن (قراءة فقط) |
-<<<<<<< HEAD
 | `thermal_power` | حرارة CPU، المراوح، أعلى العمليات استهلاكاً، governor/EPP/Turbo، TLP وملف منصة العتاد وتعارض مديري الطاقة | آمن (قراءة فقط) |
-| `service_audit` | تدقيق update_shutdown.service المتقاعدة وبقاياها دون حذف أو تعطيل | آمن (قراءة فقط) |
+| `service_audit` | تدقيق Update on Shutdown: وحدات systemd وبقايا السكربت، أخطاء DNS/Pamac، إيقاف الشبكة وفشل فك /var/cache مع فصل الدليل عن السبب المحتمل | آمن (قراءة فقط) |
 | `system_integrity` | تدقيق مصدر الجذر وfstab وصياغة GRUB ومسارات mkinitcpio وتفاصيل Btrfs — قراءة فقط | آمن |
 | `package_compatibility` | اتساق pacman والحزم الأجنبية ومؤشرات checkrebuild بعد تغيّر المكتبات — قراءة فقط | آمن |
 | `disk_space_map` | خريطة treemap هرمية لمساحة القرص: قرص ← مجلد ← ملفات، تمييز الكاش عن بيانات المستخدم — دون أي حذف | آمن (إخباري) |
-=======
-| `thermal_power` | حرارة CPU، أعلى العمليات استهلاكاً، governor/EPP/Turbo، TLP وملف منصة العتاد وتعارض مديري الطاقة | آمن (قراءة فقط) |
-| `service_audit` | تدقيق Update on Shutdown: وحدات systemd وبقايا السكربت، أخطاء DNS/Pamac، إيقاف الشبكة وفشل فك /var/cache مع فصل الدليل عن السبب المحتمل | آمن (قراءة فقط) |
->>>>>>> origin/feat/update-shutdown-safety-audit
 | `user_manager` | إدارة المستخدمين والمجموعات | متوسط |
 | `printer_manager` | حالة الطابعات (CUPS) | آمن |
 

@@ -103,9 +103,9 @@ def test_update_and_network_evidence_does_not_claim_proven_timing():
             )
         return CommandResult(0, "", "")
 
-    with patch("modules.service_audit.run_unprivileged", side_effect=command), \\
-         patch("modules.service_audit.Path.iterdir", side_effect=FileNotFoundError), \\
-         patch("modules.service_audit.Path.exists", return_value=False), \\
+    with patch("modules.service_audit.run_unprivileged", side_effect=command), \
+         patch("modules.service_audit.Path.iterdir", side_effect=FileNotFoundError), \
+         patch("modules.service_audit.Path.exists", return_value=False), \
          patch("modules.service_audit.Path.is_file", return_value=False):
         result = ServiceAuditModule().scan()
 
