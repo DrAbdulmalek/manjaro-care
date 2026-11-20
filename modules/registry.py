@@ -19,6 +19,7 @@ from modules.duplicate_finder import DuplicateFinderModule
 from modules.failed_services import FailedServicesModule
 from modules.file_shredder import FileShredderModule
 from modules.firewall_manager import FirewallManagerModule
+from modules.firmware_overview import FirmwareOverviewModule
 from modules.flatpak_cleanup import FlatpakCleanupModule
 from modules.font_toolkit import FontToolkitModule
 from modules.gamescope_hdr import GamescopeHdrModule
@@ -118,6 +119,7 @@ def get_all_modules():
         DriverManagerModule(),
         DiskAnalyzerModule(),
         DiskSpaceMapModule(),  # خريطة مساحة القرص الهرمية (treemap غير متزامن)
+        FirmwareOverviewModule(),  # مركز معلومات الـFirmware (الإصدارات، الحماية، الإقلاع)
         BtrfsSnapperModule(),
         BootSanityModule(),
         SystemIntegrityModule(),  # سلامة النظام: التحقق من حزم الأساس
